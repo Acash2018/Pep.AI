@@ -23,3 +23,5 @@ class ScoutPlayerResponse(BaseModel):
     transfer_value: str
     similar_players: List[dict[str, Any]]
     report: dict[str, Any]
+    memory: dict[str, Any] | None = None
+    cached: bool | None = None

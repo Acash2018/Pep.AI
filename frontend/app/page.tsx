@@ -268,6 +268,16 @@ export default function HomePage() {
                     <p className="text-sm uppercase text-slate-400">Final Report</p>
                     <h2 className="mt-2 text-2xl font-semibold text-white">{report.player.name}</h2>
                     <p className="mt-4 text-sm leading-6 text-slate-300">{report.report.summary}</p>
+                    {report.memory ? (
+                      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                        <Metric label="Consistency" value={report.memory.consistency_score} />
+                        <Metric label="Risk" value={report.memory.risk_profile_score} />
+                        <Metric label="Confidence" value={report.memory.scouting_confidence_score} />
+                      </div>
+                    ) : null}
+                    {report.memory?.development_trajectory_notes ? (
+                      <p className="mt-4 rounded-lg bg-slate-950/70 p-4 text-sm text-slate-300">{report.memory.development_trajectory_notes}</p>
+                    ) : null}
                     <div className="mt-5 grid gap-3 sm:grid-cols-2">
                       <ReportList title="Strengths" items={report.strengths} />
                       <ReportList title="Weaknesses" items={report.weaknesses} />
@@ -317,6 +327,15 @@ function ReportList({ title, items }: { title: string; items: string[] }) {
           <li key={item}>{item}</li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg bg-slate-950/70 p-4">
+      <p className="text-xs uppercase text-slate-500">{label}</p>
+      <p className="mt-2 text-lg font-semibold text-white">{value}/100</p>
     </div>
   );
 }

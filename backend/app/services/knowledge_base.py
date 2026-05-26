@@ -1,6 +1,11 @@
 from pathlib import Path
 from typing import Any
+import hashlib
 
+from sqlalchemy import select
+
+from app.db.models import KnowledgeSource
+from app.db.session import SessionLocal
 from app.services.vector_search import VectorSearchService
 
 KNOWLEDGE_BASE_DIR = Path(__file__).resolve().parents[1] / 'knowledge_base'
@@ -20,6 +25,7 @@ class KnowledgeBaseService:
             documents.extend(_document_chunks(path))
 
         count = self.vector_search_service.upsert_documents(documents)
+        _persist_knowledge_sources()
         self._seeded = True
         return {
             'knowledge_base_dir': str(KNOWLEDGE_BASE_DIR),
@@ -82,6 +88,27 @@ def _document_chunks(path: Path, chunk_size: int = 900, overlap: int = 120) -> l
         chunk_index += 1
 
     return chunks
+
+
+def _persist_knowledge_sources() -> None:
+    with SessionLocal() as db:
+        for path in sorted(KNOWLEDGE_BASE_DIR.rglob('*')):
+            if not path.is_file() or path.suffix.lower() not in TEXT_EXTENSIONS:
+                continue
+
+            text = path.read_text(encoding='utf-8').strip()
+            relative_path = path.relative_to(KNOWLEDGE_BASE_DIR).as_posix()
+            category = relative_path.split('/')[0] if '/' in relative_path else 'general'
+            source = db.scalar(select(KnowledgeSource).where(KnowledgeSource.source_id == relative_path))
+            if not source:
+                source = KnowledgeSource(source_id=relative_path)
+                db.add(source)
+
+            source.category = category
+            source.title = path.stem.replace('_', ' ').title()
+            source.content_hash = hashlib.sha256(text.encode('utf-8')).hexdigest()
+            source.metadata_json = {'path': relative_path, 'characters': len(text)}
+        db.commit()
 
 
 knowledge_base_service = KnowledgeBaseService()

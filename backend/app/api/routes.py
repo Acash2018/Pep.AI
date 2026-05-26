@@ -1,7 +1,16 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from app.db.session import get_db
 from app.services.players import get_all_players, search_players, get_player_by_id
 from app.services.agents import generate_scouting_report, scout_player
 from app.services.knowledge_base import knowledge_base_service
+from app.services.persistence import (
+    HistoryPersistenceService,
+    PlayerPersistenceService,
+    ScoutingReportPersistenceService,
+    serialize_report,
+)
 from app.services.statsbomb import ingest_statsbomb_players
 from app.models import ReportRequest, ScoutPlayerRequest, ScoutPlayerResponse
 
@@ -12,8 +21,11 @@ def players():
     return {'players': get_all_players()}
 
 @router.get('/players/search')
-def players_search(q: str = ''):
-    return {'players': search_players(q)}
+def players_search(q: str = '', db: Session = Depends(get_db)):
+    results = search_players(q)
+    HistoryPersistenceService(db).record_search(q, len(results))
+    db.commit()
+    return {'players': results}
 
 
 @router.post('/players/ingest/statsbomb')
@@ -45,6 +57,31 @@ def player_detail(player_id: str):
     if not player:
         raise HTTPException(status_code=404, detail='Player not found')
     return player
+
+
+@router.get('/memory/players')
+def analyzed_players(limit: int = 50, db: Session = Depends(get_db)):
+    players = PlayerPersistenceService(db).get_analyzed_players(limit)
+    return {'players': [player.raw_profile | {'databaseId': player.id} for player in players]}
+
+
+@router.get('/memory/players/{player_id}/timeline')
+def player_timeline(player_id: str, db: Session = Depends(get_db)):
+    timeline = PlayerPersistenceService(db).timeline(player_id)
+    if not timeline:
+        raise HTTPException(status_code=404, detail='No saved analysis for player')
+    return timeline
+
+
+@router.get('/memory/reports')
+def saved_reports(limit: int = 50, db: Session = Depends(get_db)):
+    reports = ScoutingReportPersistenceService(db).list_reports(limit)
+    return {'reports': [serialize_report(report) for report in reports]}
+
+
+@router.get('/memory/comparisons/{player_id}')
+def saved_comparisons(player_id: str, db: Session = Depends(get_db)):
+    return {'comparisons': HistoryPersistenceService(db).comparison_history(player_id)}
 
 @router.post('/reports')
 def create_report(request: ReportRequest):

@@ -2,9 +2,9 @@ import Link from 'next/link';
 
 const navItems = [
   { label: 'Dashboard', href: '/' },
-  { label: 'Search', href: '/' },
-  { label: 'Scouting', href: '/' },
-  { label: 'Reports', href: '/' },
+  { label: 'Saved Reports', href: '/reports' },
+  { label: 'Compare', href: '/compare' },
+  { label: 'History', href: '/history' },
 ];
 
 export default function Sidebar() {

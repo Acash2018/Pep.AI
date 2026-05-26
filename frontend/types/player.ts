@@ -100,4 +100,44 @@ export type ScoutPlayerResponse = {
   transfer_value: string;
   similar_players: Player[];
   report: ScoutReport;
+  memory?: {
+    risk_profile_score: number;
+    consistency_score: number;
+    scouting_confidence_score: number;
+    development_trajectory_notes: string;
+  };
+  cached?: boolean;
+};
+
+export type SavedReport = {
+  id: number;
+  player: Player;
+  requested_system: string;
+  buying_club: string;
+  fit_score: number;
+  risk_score: number;
+  consistency_score: number;
+  scouting_confidence_score: number;
+  development_trajectory_notes: string;
+  created_at: string;
+  payload: ScoutPlayerResponse;
+};
+
+export type TacticalProfileHistory = {
+  id: number;
+  system: string;
+  identified_system: string;
+  role: string;
+  fit_score: number;
+  risk_score: number;
+  confidence_score: number;
+  strengths: string[];
+  weaknesses: string[];
+  created_at: string;
+};
+
+export type PlayerTimeline = {
+  player: Player;
+  reports: SavedReport[];
+  tactical_profiles: TacticalProfileHistory[];
 };

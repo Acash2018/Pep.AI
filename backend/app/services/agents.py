@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from app.models import ReportRequest, ScoutPlayerRequest
+from app.services.persistence import get_cached_scouting_result, persist_scouting_result
 from app.services.workflow import scouting_graph
 
 load_dotenv()
@@ -9,6 +10,10 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 
 def scout_player(request: ScoutPlayerRequest) -> dict:
+    cached = get_cached_scouting_result(request)
+    if cached:
+        return cached
+
     final_state = scouting_graph.invoke(
         {
             'player_id': request.player_id,
@@ -18,7 +23,7 @@ def scout_player(request: ScoutPlayerRequest) -> dict:
     )
 
     report = final_state['report']
-    return {
+    payload = {
         'player': final_state['player'],
         'strengths': report['strengths'],
         'weaknesses': report['weaknesses'],
@@ -27,6 +32,7 @@ def scout_player(request: ScoutPlayerRequest) -> dict:
         'similar_players': final_state['similar_players'],
         'report': report,
     }
+    return persist_scouting_result(request, payload)
 
 
 def generate_scouting_report(request: ReportRequest) -> dict:
