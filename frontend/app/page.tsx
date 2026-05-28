@@ -54,6 +54,8 @@ export default function HomePage() {
   const [ingesting, setIngesting] = useState(false);
   const [ingestStatus, setIngestStatus] = useState('');
   const [error, setError] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [allPlayers, setAllPlayers] = useState<Player[]>(fallbackPlayers);
   const scoutingRequestId = useRef(0);
 
   async function refreshPlayers() {
@@ -63,6 +65,7 @@ export default function HomePage() {
     }
     const data = await response.json();
     setPlayers(data.players);
+    setAllPlayers(data.players);
     setSelectedPlayerId((currentId) => {
       if (data.players.some((player: Player) => player.id === currentId)) {
         return currentId;
@@ -137,6 +140,52 @@ export default function HomePage() {
     }
   }
 
+  async function scoutForSystem() {
+    if (!preferredSystem.trim()) {
+      setError('Enter a tactical system before scouting.');
+      return;
+    }
+    setError('');
+    setFilterStatus('');
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/players/scout-candidates?system=${encodeURIComponent(preferredSystem)}`,
+      );
+      if (!response.ok) {
+        throw new Error('Filter request failed');
+      }
+      const data = await response.json();
+      const candidates = (data.players ?? []) as Player[];
+
+      if (candidates.length === 0) {
+        setPlayers([]);
+        setFilterStatus(
+          `No players score 54+ for ${data.system_label ?? preferredSystem} (evaluated ${data.evaluated ?? 0} position-compatible players).`,
+        );
+        setReport(null);
+        return;
+      }
+
+      setPlayers(candidates);
+      setFilterStatus(
+        `Showing ${candidates.length} player${candidates.length === 1 ? '' : 's'} with 54+ fit for ${data.system_label ?? preferredSystem}.`,
+      );
+
+      const stillVisible = candidates.find((p) => p.id === selectedPlayerId);
+      const target = stillVisible ?? candidates[0];
+      setSelectedPlayerId(target.id);
+      await scoutPlayer(target.id);
+    } catch {
+      setError('Unable to filter candidates. Check that the FastAPI backend is running.');
+    }
+  }
+
+  function clearSystemFilter() {
+    setPlayers(allPlayers);
+    setFilterStatus('');
+  }
+
   async function ingestStatsBombPlayers() {
     setIngesting(true);
     setError('');
@@ -197,7 +246,7 @@ export default function HomePage() {
                 />
                 <button
                   type="button"
-                  onClick={() => scoutPlayer()}
+                  onClick={scoutForSystem}
                   disabled={loadingReport}
                   className="rounded-lg bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
                 >
@@ -222,6 +271,18 @@ export default function HomePage() {
           ) : null}
           {ingestStatus ? (
             <div className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">{ingestStatus}</div>
+          ) : null}
+          {filterStatus ? (
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-sky-400/30 bg-sky-500/10 p-4 text-sm text-sky-200">
+              <span>{filterStatus}</span>
+              <button
+                type="button"
+                onClick={clearSystemFilter}
+                className="rounded-md border border-sky-300/40 px-3 py-1 text-xs font-semibold text-sky-100 transition hover:bg-sky-400/20"
+              >
+                Show all players
+              </button>
+            </div>
           ) : null}
 
           <div className="grid gap-6 xl:grid-cols-[1.35fr_1fr]">

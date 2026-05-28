@@ -16,6 +16,13 @@ type TacticalFitProps = {
   retrievedKnowledge?: RetrievedKnowledge[];
 };
 
+function fitTone(fitScore: number): string {
+  if (fitScore >= 85) return 'text-emerald-300';
+  if (fitScore >= 70) return 'text-sky-300';
+  if (fitScore >= 55) return 'text-amber-300';
+  return 'text-rose-300';
+}
+
 export default function TacticalFit({
   style,
   fitScore,
@@ -30,6 +37,7 @@ export default function TacticalFit({
   whyNot = [],
   retrievedKnowledge = [],
 }: TacticalFitProps) {
+  const tone = fitTone(fitScore);
   return (
     <div className="rounded-lg border border-white/10 bg-white/5 p-6">
       <div className="flex items-center justify-between gap-4">
@@ -37,11 +45,11 @@ export default function TacticalFit({
           <p className="text-sm uppercase text-slate-400">Tactical Fit</p>
           <h3 className="mt-2 text-xl font-semibold text-white">{style}</h3>
         </div>
-        <div className="rounded-lg bg-slate-950/70 px-4 py-2 text-sm font-semibold text-emerald-300">
+        <div className={`rounded-lg bg-slate-950/70 px-4 py-2 text-sm font-semibold ${tone}`}>
           Fit {fitScore}/100
         </div>
       </div>
-      {fitGrade ? <p className="mt-3 text-sm font-semibold text-emerald-300">{fitGrade}</p> : null}
+      {fitGrade ? <p className={`mt-3 text-sm font-semibold ${tone}`}>{fitGrade}</p> : null}
       <p className="mt-4 text-sm leading-6 text-slate-300">{notes}</p>
       {roleProjection ? <p className="mt-3 text-sm text-slate-400">{roleProjection}</p> : null}
       {roleMatch ? (

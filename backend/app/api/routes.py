@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.services.players import get_all_players, search_players, get_player_by_id
+from app.services.players import get_all_players, search_players, get_player_by_id, scout_candidates_for_system
 from app.services.agents import generate_scouting_report, scout_player
 from app.services.knowledge_base import knowledge_base_service
 from app.services.persistence import (
@@ -26,6 +26,13 @@ def players_search(q: str = '', db: Session = Depends(get_db)):
     HistoryPersistenceService(db).record_search(q, len(results))
     db.commit()
     return {'players': results}
+
+
+@router.get('/players/scout-candidates')
+def players_scout_candidates(system: str, min_fit: int = 54):
+    if not system.strip():
+        raise HTTPException(status_code=400, detail='system query parameter is required')
+    return scout_candidates_for_system(system, min_fit=min_fit)
 
 
 @router.post('/players/ingest/statsbomb')

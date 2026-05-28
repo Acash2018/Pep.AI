@@ -5,7 +5,21 @@ type PlayerCardProps = {
   selected?: boolean;
 };
 
+function fitBadge(fitScore: number): { label: string; className: string } {
+  if (fitScore >= 9) {
+    return { label: 'Top Pick', className: 'bg-emerald-500/15 text-emerald-300' };
+  }
+  if (fitScore >= 7) {
+    return { label: 'Strong Fit', className: 'bg-sky-500/15 text-sky-300' };
+  }
+  if (fitScore >= 5) {
+    return { label: 'Watchlist', className: 'bg-amber-500/15 text-amber-300' };
+  }
+  return { label: 'Developmental', className: 'bg-slate-500/20 text-slate-300' };
+}
+
 export default function PlayerCard({ player, selected = false }: PlayerCardProps) {
+  const badge = fitBadge(player.fitScore);
   return (
     <article className="rounded-lg border border-white/10 bg-white/5 p-6 shadow-lg shadow-black/10 transition hover:-translate-y-1">
       <div className="flex items-start justify-between gap-4">
@@ -13,8 +27,8 @@ export default function PlayerCard({ player, selected = false }: PlayerCardProps
           <h2 className="text-xl font-semibold text-white">{player.name}</h2>
           <p className="mt-1 text-sm text-slate-400">{player.position} - {player.club}</p>
         </div>
-        <span className={`rounded-full px-3 py-1 text-sm font-semibold ${selected ? 'bg-emerald-400 text-slate-950' : 'bg-emerald-500/15 text-emerald-300'}`}>
-          {selected ? 'Selected' : 'Top Pick'}
+        <span className={`rounded-full px-3 py-1 text-sm font-semibold ${selected ? 'bg-emerald-400 text-slate-950' : badge.className}`}>
+          {selected ? 'Selected' : badge.label}
         </span>
       </div>
       <p className="mt-4 text-sm leading-6 text-slate-300">{player.summary}</p>
