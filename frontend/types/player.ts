@@ -13,6 +13,21 @@ export type Player = {
   fitScore: number;
   reportHighlights: string[];
   source?: string;
+  primary_position?: string;
+  secondary_positions?: string[];
+  tactical_roles?: string[];
+  suitable_formations?: string[];
+  defensive_line_type?: string;
+  progression_profile?: string;
+  pressing_profile?: string;
+  tactical_archetype?: string;
+  retrieval_metadata?: {
+    positional_confidence_score: number;
+    tactical_relevance_score: number;
+    role_overlap_score: number;
+    formation_compatibility_score: number;
+    weighted_score: number;
+  };
   similarityScore?: number;
   similarityReasons?: string[];
   systemFitScore?: number;

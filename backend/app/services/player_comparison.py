@@ -1,7 +1,9 @@
 from app.data.player_repository import retrieve_all_player_data
 from app.db.models import Player
 from app.db.session import SessionLocal
+from app.services.football_metadata import enrich_player_metadata
 from app.services.intelligence_metrics import risk_profile_score
+from app.services.metadata_retrieval import score_player_relevance
 
 
 class PlayerComparisonEngine:
@@ -11,7 +13,7 @@ class PlayerComparisonEngine:
             if candidate['id'] == player['id']:
                 continue
 
-            score, reasons, matrix = self.compare(player, candidate)
+            score, reasons, matrix = self.compare(enrich_player_metadata(player), enrich_player_metadata(candidate))
             comparisons.append(
                 {
                     **candidate,
@@ -32,10 +34,20 @@ class PlayerComparisonEngine:
     def compare(self, player: dict, candidate: dict) -> tuple[int, list[str], dict]:
         score = 0
         reasons = []
+        position_relation = _position_relation(player, candidate)
 
-        if _position_family(player['position']) == _position_family(candidate['position']):
+        if position_relation == 'same_primary':
+            score += 35
+            reasons.append('same primary position')
+        elif position_relation == 'same_family':
             score += 25
             reasons.append('same position family')
+        elif position_relation == 'role_adjacent':
+            score += 12
+            reasons.append('role-adjacent position')
+        else:
+            score -= 35
+            reasons.append('unrelated position penalty')
 
         shared_strengths = set(player['strengths']).intersection(candidate['strengths'])
         if shared_strengths:
@@ -57,7 +69,18 @@ class PlayerComparisonEngine:
             score += 15
             reasons.append('similar attacking output')
 
+        metadata_relevance = score_player_relevance(
+            candidate,
+            f"{player['primary_position']} {' '.join(player.get('tactical_roles', []))} {' '.join(player.get('suitable_formations', []))}",
+            {
+                'positions': {player['primary_position']},
+                'roles': set(player.get('tactical_roles', [])),
+                'formations': set(player.get('suitable_formations', [])),
+                'query_terms': set(),
+            },
+        )
         matrix = _comparison_matrix(player, candidate)
+        matrix['metadata_relevance'] = metadata_relevance
         score = min(100, int((score * 0.55) + (matrix['overall_matrix_score'] * 0.45)))
 
         return min(score, 100), reasons or ['nearest available profile in the current data pool'], matrix
@@ -77,6 +100,8 @@ def _comparison_matrix(player: dict, candidate: dict) -> dict:
     candidate_risk = risk_profile_score(candidate, {'fit_score': candidate.get('fitScore', 60), 'system_compatibility': {'risk_factors': []}})
 
     attribute_similarity = {
+        'primary_position': player.get('primary_position'),
+        'candidate_primary_position': candidate.get('primary_position'),
         'position_family_match': _position_family(player['position']) == _position_family(candidate['position']),
         'pass_accuracy_gap': pass_gap,
         'output_gap': output_gap,
@@ -138,13 +163,25 @@ def _output(player: dict) -> int:
     return stats.get('goals', 0) + stats.get('assists', 0)
 
 
+def _position_relation(player: dict, candidate: dict) -> str:
+    if player.get('primary_position') == candidate.get('primary_position'):
+        return 'same_primary'
+    player_positions = {player.get('primary_position'), *player.get('secondary_positions', [])}
+    candidate_positions = {candidate.get('primary_position'), *candidate.get('secondary_positions', [])}
+    if player_positions.intersection(candidate_positions):
+        return 'role_adjacent'
+    if player.get('position_family') == candidate.get('position_family'):
+        return 'same_family'
+    return 'unrelated'
+
+
 def _comparison_pool() -> list[dict]:
     pool_by_id = {player['id']: player for player in retrieve_all_player_data()}
     try:
         with SessionLocal() as db:
             for player in db.query(Player).all():
                 if player.raw_profile:
-                    pool_by_id[player.external_id] = player.raw_profile
+                    pool_by_id[player.external_id] = enrich_player_metadata(player.raw_profile)
     except Exception:
         pass
     return list(pool_by_id.values())

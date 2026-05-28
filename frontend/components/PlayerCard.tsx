@@ -37,6 +37,11 @@ export default function PlayerCard({ player, selected = false }: PlayerCardProps
         </span>
       </div>
       <p className="mt-4 text-sm leading-6 text-slate-300">{player.summary}</p>
+      <div className="mt-4 grid gap-3 text-sm text-slate-300 md:grid-cols-3">
+        <Meta label="Primary Role" value={formatRole(player.tactical_roles?.[0] ?? player.primary_position)} />
+        <Meta label="Formations" value={player.suitable_formations?.slice(0, 2).map(formatRole).join(', ')} />
+        <Meta label="Archetype" value={player.tactical_archetype} />
+      </div>
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <div className="rounded-lg bg-slate-950/60 p-4">
           <p className="text-xs uppercase text-slate-500">Transfer Value</p>
@@ -47,6 +52,29 @@ export default function PlayerCard({ player, selected = false }: PlayerCardProps
           <p className="mt-2 text-sm text-slate-300">{player.strengths.join(', ')}</p>
         </div>
       </div>
+      {player.retrieval_metadata ? (
+        <div className="mt-4 grid gap-2 text-xs text-slate-400 sm:grid-cols-3">
+          <span>Position {player.retrieval_metadata.positional_confidence_score}/100</span>
+          <span>Tactical {player.retrieval_metadata.tactical_relevance_score}/100</span>
+          <span>Role {player.retrieval_metadata.role_overlap_score}/100</span>
+        </div>
+      ) : null}
     </article>
   );
+}
+
+function Meta({ label, value }: { label: string; value?: string }) {
+  return (
+    <div className="rounded-lg bg-slate-950/50 p-3">
+      <p className="text-xs uppercase text-slate-500">{label}</p>
+      <p className="mt-1 text-slate-200">{value || 'Unclassified'}</p>
+    </div>
+  );
+}
+
+function formatRole(value?: string) {
+  if (!value) {
+    return undefined;
+  }
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (letter: string) => letter.toUpperCase());
 }

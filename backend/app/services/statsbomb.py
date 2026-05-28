@@ -4,6 +4,7 @@ from typing import Any
 from urllib.request import urlopen
 
 from app.data.dynamic_players import replace_ingested_players
+from app.services.football_metadata import enrich_player_metadata
 
 BASE_URL = 'https://raw.githubusercontent.com/statsbomb/open-data/master/data'
 DEFAULT_COMPETITION_ID = 9
@@ -130,7 +131,7 @@ def _build_players(
         fit_score = _fit_score(stats, pass_accuracy)
 
         players.append(
-            {
+            enrich_player_metadata({
                 'id': f"sb-{player_id}",
                 'name': profile['name'],
                 'position': position,
@@ -150,7 +151,7 @@ def _build_players(
                     'passAccuracy': pass_accuracy,
                 },
                 'source': 'StatsBomb Open Data',
-            }
+            })
         )
 
     return sorted(players, key=lambda player: (player['fitScore'], player['stats']['assists'], player['stats']['goals']), reverse=True)

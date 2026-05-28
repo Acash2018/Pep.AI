@@ -2,10 +2,11 @@ from typing import Optional
 
 from app.data.dynamic_players import get_ingested_players
 from app.data.mock_players import MOCK_PLAYERS
+from app.services.football_metadata import enrich_player_metadata
 
 
 def retrieve_all_player_data() -> list[dict]:
-    return MOCK_PLAYERS + get_ingested_players()
+    return [enrich_player_metadata(player) for player in MOCK_PLAYERS + get_ingested_players()]
 
 
 def retrieve_player_data(player_id: str) -> Optional[dict]:
