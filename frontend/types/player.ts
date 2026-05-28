@@ -15,6 +15,9 @@ export type Player = {
   source?: string;
   similarityScore?: number;
   similarityReasons?: string[];
+  systemFitScore?: number;
+  systemFitGrade?: string;
+  systemMatchedPrinciples?: string[];
   stats?: {
     goals: number;
     assists: number;

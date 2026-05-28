@@ -5,21 +5,26 @@ type PlayerCardProps = {
   selected?: boolean;
 };
 
-function fitBadge(fitScore: number): { label: string; className: string } {
-  if (fitScore >= 9) {
+function fitBadge(score100: number, hasSystemContext: boolean): { label: string; className: string } {
+  if (score100 >= 85) {
     return { label: 'Top Pick', className: 'bg-emerald-500/15 text-emerald-300' };
   }
-  if (fitScore >= 7) {
+  if (score100 >= 70) {
     return { label: 'Strong Fit', className: 'bg-sky-500/15 text-sky-300' };
   }
-  if (fitScore >= 5) {
-    return { label: 'Watchlist', className: 'bg-amber-500/15 text-amber-300' };
+  if (score100 >= 55) {
+    return { label: 'Risky Fit', className: 'bg-amber-500/15 text-amber-300' };
   }
-  return { label: 'Developmental', className: 'bg-slate-500/20 text-slate-300' };
+  return {
+    label: hasSystemContext ? 'Low Fit' : 'Developmental',
+    className: 'bg-rose-500/15 text-rose-300',
+  };
 }
 
 export default function PlayerCard({ player, selected = false }: PlayerCardProps) {
-  const badge = fitBadge(player.fitScore);
+  const hasSystemContext = typeof player.systemFitScore === 'number';
+  const score100 = hasSystemContext ? (player.systemFitScore as number) : player.fitScore * 10;
+  const badge = fitBadge(score100, hasSystemContext);
   return (
     <article className="rounded-lg border border-white/10 bg-white/5 p-6 shadow-lg shadow-black/10 transition hover:-translate-y-1">
       <div className="flex items-start justify-between gap-4">

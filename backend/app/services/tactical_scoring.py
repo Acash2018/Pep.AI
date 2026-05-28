@@ -167,7 +167,7 @@ def _grade(score: int) -> str:
     if score >= 70:
         return 'Strong fit'
     if score >= 55:
-        return 'Conditional fit'
+        return 'Risky fit'
     return 'Low fit'
 
 
