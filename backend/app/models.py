@@ -13,6 +13,7 @@ class ScoutPlayerRequest(BaseModel):
     player_id: str
     club: str = ''
     preferred_system: str
+    force_refresh: bool = False
 
 
 class ScoutPlayerResponse(BaseModel):

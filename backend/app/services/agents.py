@@ -10,9 +10,10 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 
 def scout_player(request: ScoutPlayerRequest) -> dict:
-    cached = get_cached_scouting_result(request)
-    if cached:
-        return cached
+    if not getattr(request, 'force_refresh', False):
+        cached = get_cached_scouting_result(request)
+        if cached:
+            return cached
 
     final_state = scouting_graph.invoke(
         {
