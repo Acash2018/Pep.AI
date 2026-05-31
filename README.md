@@ -42,11 +42,237 @@ The app is designed to answer questions such as:
 
 - FastAPI
 - LangGraph
+- OpenAI GPT-4.1
 - ChromaDB
 - SQLAlchemy
 - PostgreSQL via `psycopg`
 - SQLite local fallback
 - StatsBomb Open Data ingestion
+
+## Core Backend Technologies
+
+This section explains the main backend tools and how Pep.AI uses each one.
+
+### FastAPI
+
+FastAPI is the Python web framework that powers the backend HTTP API.
+
+In Pep.AI, FastAPI is responsible for:
+
+- exposing routes for the frontend
+- receiving scouting requests
+- returning player data, reports, timelines, and comparison results
+- handling request validation through Pydantic models
+- serving interactive API docs at `/docs`
+- running startup logic such as database initialization
+
+Main files:
+
+```text
+backend/app/main.py
+backend/app/api/routes.py
+backend/app/models.py
+```
+
+Example route:
+
+```text
+POST /api/scout-player
+```
+
+When the frontend clicks `Scout player`, it sends a request to FastAPI. FastAPI passes that request into the scouting services, then returns the structured report JSON back to the dashboard.
+
+### LangGraph
+
+LangGraph is the workflow orchestration library used to model Pep.AI's scouting process as a graph of agents.
+
+In Pep.AI, LangGraph connects the scouting agents in a predictable sequence:
+
+```text
+load_player
+  -> stats_agent
+  -> tactical_fit_agent
+  -> report_writer_agent
+```
+
+Main file:
+
+```text
+backend/app/services/workflow.py
+```
+
+Pep.AI uses LangGraph to:
+
+- maintain shared scouting state between agents
+- run the Stats Agent, Tactical Fit Agent, and Report Writer Agent in order
+- pass player data, retrieved knowledge, tactical scores, and report sections between steps
+- keep the scouting workflow modular and easier to extend
+
+The shared graph state is defined in:
+
+```text
+backend/app/services/state.py
+```
+
+The current workflow is deterministic and service-driven, but the structure is ready for deeper LLM-backed agent reasoning later.
+
+### OpenAI GPT-4.1
+
+OpenAI GPT-4.1 is used as a reasoning and report-writing layer on top of Pep.AI's deterministic football intelligence.
+
+Important: GPT-4.1 does not replace Pep.AI's retrieval, metadata filtering, tactical scoring, role matching, or comparison logic. Those systems still run first and produce the factual evidence. GPT-4.1 receives that assembled context and explains it in professional scouting language.
+
+Main file:
+
+```text
+backend/app/services/openai_service.py
+```
+
+Prompt definitions:
+
+```text
+backend/app/services/prompts.py
+```
+
+GPT-4.1 is used for:
+
+- Scout Agent reasoning: strengths, weaknesses, development areas
+- Tactical Fit Agent reasoning: tactical suitability, tactical risks, formation fit
+- Comparison Agent reasoning: stylistic similarities and differences
+- Report Writer Agent output: final professional scouting report
+
+The GPT layer receives:
+
+- player profile
+- tactical metadata
+- tactical role
+- formation suitability
+- deterministic fit score
+- tactical strengths
+- tactical weaknesses
+- retrieved ChromaDB football knowledge
+- comparison candidates
+
+Environment variables:
+
+```env
+OPENAI_API_KEY=your-openai-api-key
+OPENAI_MODEL=gpt-4.1
+```
+
+If `OPENAI_API_KEY` is missing or still set to the placeholder value, Pep.AI uses deterministic fallback text and the app continues working locally.
+
+### ChromaDB
+
+ChromaDB is the vector database used for Pep.AI's football knowledge retrieval system.
+
+In Pep.AI, ChromaDB stores embedded chunks of football knowledge from markdown documents inside:
+
+```text
+backend/app/knowledge_base/
+```
+
+Those documents include:
+
+- tactical systems
+- player role archetypes
+- scouting reports
+- tactical analysis
+- player profile archetypes
+
+Main files:
+
+```text
+backend/app/utils/chromadb_client.py
+backend/app/services/embeddings.py
+backend/app/services/vector_search.py
+backend/app/services/knowledge_base.py
+```
+
+Pep.AI uses ChromaDB to:
+
+- store vector embeddings of football knowledge documents
+- retrieve relevant tactical and role context during scouting
+- support RAG for the Tactical Fit Agent
+- ground tactical explanations in indexed football intelligence
+
+Example:
+
+When the user scouts a player for:
+
+```text
+Gegenpressing
+```
+
+the Tactical Fit Agent retrieves relevant knowledge such as:
+
+```text
+tactical_systems/gegenpressing.md
+player_roles/pressing_forward.md
+```
+
+Then the agent summarizes that context into scouting language, for example:
+
+```text
+Retrieved football intelligence emphasizes immediate counter-pressing after turnovers,
+compact team spacing, and vertical progression.
+```
+
+ChromaDB persistence is controlled by:
+
+```env
+CHROMA_PERSIST_DIR=./chromadb
+```
+
+### SQLAlchemy
+
+SQLAlchemy is the database toolkit and ORM (Object-Relational Mapping). used for Pep.AI's persistent memory layer.
+
+In Pep.AI, SQLAlchemy maps Python classes to database tables and lets the backend save and retrieve scouting intelligence.
+
+Main files:
+
+```text
+backend/app/db/models.py
+backend/app/db/session.py
+backend/app/services/persistence.py
+```
+
+Pep.AI uses SQLAlchemy to persist:
+
+- players
+- generated scouting reports
+- tactical profiles
+- comparison history
+- knowledge source records
+- player search history
+
+Database entities include:
+
+```text
+Player
+ScoutingReport
+TacticalProfile
+Comparison
+KnowledgeSource
+PlayerSearchHistory
+```
+
+SQLAlchemy also powers the scouting report cache. When the same player/system request is made again, Pep.AI checks the database first. If a cached report exists, it returns that saved report instead of rerunning the whole LangGraph workflow.
+
+Database configuration:
+
+```env
+DATABASE_URL=postgresql+psycopg://pep_user:pep_password@localhost:5432/pep_ai
+```
+
+If `DATABASE_URL` is not set, Pep.AI falls back to local SQLite:
+
+```text
+sqlite:///./pep_ai.db
+```
+
+This means local development works immediately, while production can use PostgreSQL.
 
 ## Project Structure
 

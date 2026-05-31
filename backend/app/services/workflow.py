@@ -7,6 +7,7 @@ from app.services.prompts import (
     TACTICAL_FIT_AGENT_PROMPT,
 )
 from app.services.knowledge_base import knowledge_base_service
+from app.services.openai_service import openai_service
 from app.services.player_comparison import PlayerComparisonEngine
 from app.services.role_matching import RoleMatchingService
 from app.services.state import ScoutState
@@ -84,6 +85,17 @@ def tactical_fit_agent_node(state: ScoutState) -> ScoutState:
     general_context = knowledge_base_service.retrieve_for_tactical_fit(player, requested_system, limit=2)
     retrieved_knowledge = _dedupe_knowledge(tactical_context + role_context + general_context)
     tactical_score = tactical_scoring_service.score_fit(player, requested_system, role_match, retrieved_knowledge)
+    llm_context = _llm_context(
+        player=player,
+        requested_system=requested_system,
+        role_match=role_match,
+        tactical_score=tactical_score,
+        tactical_fit=None,
+        retrieved_knowledge=retrieved_knowledge,
+        comparison_candidates=state.get('similar_players', []),
+        stats_analysis=state.get('stats_analysis', {}),
+    )
+    scout_reasoning = openai_service.generate_scout_reasoning(llm_context)
 
     system_words = set(requested_system.lower().replace('&', ' ').replace('-', ' ').split())
     style_words = set(player_style.lower().replace('&', ' ').replace('-', ' ').split())
@@ -98,32 +110,45 @@ def tactical_fit_agent_node(state: ScoutState) -> ScoutState:
         f"with {', '.join(tactical_score['system_compatibility']['risk_factors']) or 'no major system-specific red flags'} as the main risk area. "
         f"{knowledge_note}"
     )
+    tactical_fit = {
+        'agent': 'Tactical Fit Agent',
+        'prompt': TACTICAL_FIT_AGENT_PROMPT.strip(),
+        'system': requested_system,
+        'identified_system': tactical_score['system'],
+        'current_style': player_style,
+        'fit_score': fit_score,
+        'fit_score_100': fit_score,
+        'fit_grade': tactical_score['grade'],
+        'notes': notes,
+        'role_projection': f"{player['position']} for {state.get('buying_club') or 'the target club'}",
+        'role_match': role_match,
+        'role_suitability': role_match,
+        'system_compatibility': tactical_score['system_compatibility'],
+        'tactical_strengths': tactical_score['tactical_strengths'],
+        'tactical_weaknesses': tactical_score['tactical_weaknesses'],
+        'why_fit': tactical_score['why_fit'],
+        'why_not': tactical_score['why_not'],
+        'retrieved_knowledge': retrieved_knowledge,
+        'style_overlap_score': overlap,
+    }
+    tactical_reasoning_llm = openai_service.generate_tactical_reasoning(
+        {
+            **llm_context,
+            'tactical_fit': tactical_fit,
+        }
+    )
 
     return {
         **state,
         'role_match': role_match,
         'tactical_score': tactical_score,
+        'scout_reasoning': scout_reasoning,
+        'tactical_reasoning_llm': tactical_reasoning_llm,
         'retrieved_knowledge': retrieved_knowledge,
         'tactical_fit': {
-            'agent': 'Tactical Fit Agent',
-            'prompt': TACTICAL_FIT_AGENT_PROMPT.strip(),
-            'system': requested_system,
-            'identified_system': tactical_score['system'],
-            'current_style': player_style,
-            'fit_score': fit_score,
-            'fit_score_100': fit_score,
-            'fit_grade': tactical_score['grade'],
-            'notes': notes,
-            'role_projection': f"{player['position']} for {state.get('buying_club') or 'the target club'}",
-            'role_match': role_match,
-            'role_suitability': role_match,
-            'system_compatibility': tactical_score['system_compatibility'],
-            'tactical_strengths': tactical_score['tactical_strengths'],
-            'tactical_weaknesses': tactical_score['tactical_weaknesses'],
-            'why_fit': tactical_score['why_fit'],
-            'why_not': tactical_score['why_not'],
-            'retrieved_knowledge': retrieved_knowledge,
-            'style_overlap_score': overlap,
+            **tactical_fit,
+            'gpt_reasoning': tactical_reasoning_llm,
+            'scout_reasoning': scout_reasoning,
         },
     }
 
@@ -134,6 +159,18 @@ def report_writer_agent_node(state: ScoutState) -> ScoutState:
     tactical_fit = state['tactical_fit']
     tactical_score = state['tactical_score']
     role_match = state['role_match']
+    comparison_analysis = openai_service.generate_comparison_analysis(
+        _llm_context(
+            player=player,
+            requested_system=tactical_fit['system'],
+            role_match=role_match,
+            tactical_score=tactical_score,
+            tactical_fit=tactical_fit,
+            retrieved_knowledge=state.get('retrieved_knowledge', []),
+            comparison_candidates=state.get('similar_players', []),
+            stats_analysis=stats,
+        )
+    )
 
     recommendation = 'Monitor'
     if tactical_fit['fit_score'] >= 80:
@@ -147,27 +184,53 @@ def report_writer_agent_node(state: ScoutState) -> ScoutState:
         f"(closest archetype: {tactical_fit['identified_system']}). "
         f"The strongest recruitment case is {', '.join(tactical_score['why_fit'])}"
     )
+    deterministic_report = {
+        'summary': summary,
+        'recommendation': recommendation,
+        'tactical_reasoning': {
+            'why_fit': tactical_score['why_fit'],
+            'why_not': tactical_score['why_not'],
+            'tactical_strengths': tactical_score['tactical_strengths'],
+            'tactical_weaknesses': tactical_score['tactical_weaknesses'],
+        },
+        'role_suitability': role_match,
+        'system_compatibility': tactical_score['system_compatibility'],
+        'strengths': stats['strengths'],
+        'weaknesses': stats['weaknesses'],
+        'transfer_value': state['transfer_value'],
+        'similar_players': state['similar_players'],
+        'retrieved_knowledge': state.get('retrieved_knowledge', []),
+    }
+    final_report_markdown = openai_service.generate_final_report(
+        _llm_context(
+            player=player,
+            requested_system=tactical_fit['system'],
+            role_match=role_match,
+            tactical_score=tactical_score,
+            tactical_fit=tactical_fit,
+            retrieved_knowledge=state.get('retrieved_knowledge', []),
+            comparison_candidates=state.get('similar_players', []),
+            stats_analysis=stats,
+            deterministic_report=deterministic_report,
+            scout_reasoning=state.get('scout_reasoning', {}),
+            tactical_reasoning_llm=state.get('tactical_reasoning_llm', {}),
+            comparison_analysis=comparison_analysis,
+        )
+    )
 
     return {
         **state,
+        'comparison_analysis': comparison_analysis,
+        'final_report_markdown': final_report_markdown,
         'report': {
             'agent': 'Report Writer Agent',
             'prompt': REPORT_WRITER_AGENT_PROMPT.strip(),
-            'summary': summary,
-            'recommendation': recommendation,
-            'tactical_reasoning': {
-                'why_fit': tactical_score['why_fit'],
-                'why_not': tactical_score['why_not'],
-                'tactical_strengths': tactical_score['tactical_strengths'],
-                'tactical_weaknesses': tactical_score['tactical_weaknesses'],
-            },
-            'role_suitability': role_match,
-            'system_compatibility': tactical_score['system_compatibility'],
-            'strengths': stats['strengths'],
-            'weaknesses': stats['weaknesses'],
-            'transfer_value': state['transfer_value'],
-            'similar_players': state['similar_players'],
-            'retrieved_knowledge': state.get('retrieved_knowledge', []),
+            **deterministic_report,
+            'scout_reasoning': state.get('scout_reasoning', {}),
+            'gpt_tactical_reasoning': state.get('tactical_reasoning_llm', {}),
+            'comparison_analysis': comparison_analysis,
+            'final_report_markdown': final_report_markdown,
+            'llm_model': 'gpt-4.1' if openai_service.enabled else 'deterministic-fallback',
         },
     }
 
@@ -231,6 +294,58 @@ def _dedupe_knowledge(items: list[dict]) -> list[dict]:
         seen.add(item_id)
         unique.append(item)
     return unique
+
+
+def _llm_context(
+    player: dict,
+    requested_system: str,
+    role_match: dict,
+    tactical_score: dict,
+    tactical_fit: dict | None,
+    retrieved_knowledge: list[dict],
+    comparison_candidates: list[dict],
+    stats_analysis: dict,
+    deterministic_report: dict | None = None,
+    scout_reasoning: dict | None = None,
+    tactical_reasoning_llm: dict | None = None,
+    comparison_analysis: dict | None = None,
+) -> dict:
+    return {
+        'player': player,
+        'requested_system': requested_system,
+        'tactical_role': role_match,
+        'formation_suitability': player.get('suitable_formations', []),
+        'fit_score': tactical_score.get('score'),
+        'fit_grade': tactical_score.get('grade'),
+        'tactical_strengths': tactical_score.get('tactical_strengths', []),
+        'tactical_weaknesses': tactical_score.get('tactical_weaknesses', []),
+        'system_compatibility': tactical_score.get('system_compatibility', {}),
+        'tactical_fit': tactical_fit or {},
+        'retrieved_football_knowledge': [
+            {
+                'source': item.get('metadata', {}).get('source'),
+                'category': item.get('metadata', {}).get('category'),
+                'text': item.get('text', '')[:1200],
+            }
+            for item in retrieved_knowledge[:6]
+        ],
+        'comparison_candidates': [
+            {
+                'name': candidate.get('name'),
+                'position': candidate.get('position'),
+                'club': candidate.get('club'),
+                'similarityScore': candidate.get('similarityScore'),
+                'similarityReasons': candidate.get('similarityReasons', []),
+                'comparisonMatrix': candidate.get('comparisonMatrix', {}),
+            }
+            for candidate in comparison_candidates[:4]
+        ],
+        'stats_analysis': stats_analysis,
+        'deterministic_report': deterministic_report or {},
+        'scout_reasoning': scout_reasoning or {},
+        'tactical_reasoning_llm': tactical_reasoning_llm or {},
+        'comparison_analysis': comparison_analysis or {},
+    }
 
 
 def build_scouting_graph():

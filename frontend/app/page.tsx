@@ -330,6 +330,9 @@ export default function HomePage() {
                     <p className="text-sm uppercase text-slate-400">Final Report</p>
                     <h2 className="mt-2 text-2xl font-semibold text-white">{report.player.name}</h2>
                     <p className="mt-4 text-sm leading-6 text-slate-300">{report.report.summary}</p>
+                    {report.report.llm_model ? (
+                      <p className="mt-3 text-xs uppercase text-slate-500">Reasoning layer: {report.report.llm_model}</p>
+                    ) : null}
                     {report.memory ? (
                       <div className="mt-5 grid gap-3 sm:grid-cols-3">
                         <Metric label="Consistency" value={report.memory.consistency_score} />
@@ -344,6 +347,38 @@ export default function HomePage() {
                       <ReportList title="Strengths" items={report.strengths} />
                       <ReportList title="Weaknesses" items={report.weaknesses} />
                     </div>
+                    {report.report.scout_reasoning ? (
+                      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                        <ReportList title="GPT Strengths" items={report.report.scout_reasoning.strengths ?? []} />
+                        <ReportList title="GPT Weaknesses" items={report.report.scout_reasoning.weaknesses ?? []} />
+                        <ReportList title="Development Areas" items={report.report.scout_reasoning.development_areas ?? []} />
+                      </div>
+                    ) : null}
+                    {report.report.gpt_tactical_reasoning ? (
+                      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                        <ReportList title="Tactical Suitability" items={report.report.gpt_tactical_reasoning.tactical_suitability ?? []} />
+                        <ReportList title="Tactical Risks" items={report.report.gpt_tactical_reasoning.tactical_risks ?? []} />
+                        <ReportList title="Formation Fit" items={report.report.gpt_tactical_reasoning.formation_fit ?? []} />
+                      </div>
+                    ) : null}
+                    {report.report.comparison_analysis ? (
+                      <div className="mt-5 rounded-lg bg-slate-950/70 p-4">
+                        <p className="text-xs uppercase text-slate-500">GPT Comparison Analysis</p>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <ReportList title="Similarities" items={report.report.comparison_analysis.similarities ?? []} />
+                          <ReportList title="Differences" items={report.report.comparison_analysis.differences ?? []} />
+                        </div>
+                        {report.report.comparison_analysis.recruitment_meaning ? (
+                          <p className="mt-3 text-sm text-slate-300">{report.report.comparison_analysis.recruitment_meaning}</p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {report.report.final_report_markdown ? (
+                      <div className="mt-5 rounded-lg bg-slate-950/70 p-4">
+                        <p className="text-xs uppercase text-slate-500">Professional Scouting Report</p>
+                        <pre className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-300">{report.report.final_report_markdown}</pre>
+                      </div>
+                    ) : null}
                     <div className="mt-5 rounded-lg bg-slate-950/70 p-4">
                       <p className="text-xs uppercase text-slate-500">Transfer Value</p>
                       <p className="mt-2 text-lg font-semibold text-white">{report.transfer_value}</p>
