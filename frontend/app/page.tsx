@@ -349,21 +349,21 @@ export default function HomePage() {
                     </div>
                     {report.report.scout_reasoning ? (
                       <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                        <ReportList title="GPT Strengths" items={report.report.scout_reasoning.strengths ?? []} />
-                        <ReportList title="GPT Weaknesses" items={report.report.scout_reasoning.weaknesses ?? []} />
+                        <ReportList title="LLM Strengths" items={report.report.scout_reasoning.strengths ?? []} />
+                        <ReportList title="LLM Weaknesses" items={report.report.scout_reasoning.weaknesses ?? []} />
                         <ReportList title="Development Areas" items={report.report.scout_reasoning.development_areas ?? []} />
                       </div>
                     ) : null}
-                    {report.report.gpt_tactical_reasoning ? (
+                    {report.report.llm_tactical_reasoning ? (
                       <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                        <ReportList title="Tactical Suitability" items={report.report.gpt_tactical_reasoning.tactical_suitability ?? []} />
-                        <ReportList title="Tactical Risks" items={report.report.gpt_tactical_reasoning.tactical_risks ?? []} />
-                        <ReportList title="Formation Fit" items={report.report.gpt_tactical_reasoning.formation_fit ?? []} />
+                        <ReportList title="Tactical Suitability" items={report.report.llm_tactical_reasoning.tactical_suitability ?? []} />
+                        <ReportList title="Tactical Risks" items={report.report.llm_tactical_reasoning.tactical_risks ?? []} />
+                        <ReportList title="Formation Fit" items={report.report.llm_tactical_reasoning.formation_fit ?? []} />
                       </div>
                     ) : null}
                     {report.report.comparison_analysis ? (
                       <div className="mt-5 rounded-lg bg-slate-950/70 p-4">
-                        <p className="text-xs uppercase text-slate-500">GPT Comparison Analysis</p>
+                        <p className="text-xs uppercase text-slate-500">LLM Comparison Analysis</p>
                         <div className="mt-3 grid gap-3 sm:grid-cols-2">
                           <ReportList title="Similarities" items={report.report.comparison_analysis.similarities ?? []} />
                           <ReportList title="Differences" items={report.report.comparison_analysis.differences ?? []} />

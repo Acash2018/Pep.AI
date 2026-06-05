@@ -1,13 +1,9 @@
-import os
 from dotenv import load_dotenv
 from app.models import ReportRequest, ScoutPlayerRequest
 from app.services.persistence import get_cached_scouting_result, persist_scouting_result
 from app.services.workflow import scouting_graph
 
 load_dotenv()
-
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-
 
 def scout_player(request: ScoutPlayerRequest) -> dict:
     if not getattr(request, 'force_refresh', False):

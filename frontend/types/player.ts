@@ -57,8 +57,8 @@ export type TacticalFitReport = {
   tactical_weaknesses?: string[];
   why_fit?: string[];
   why_not?: string[];
-  gpt_reasoning?: GptTacticalReasoning;
-  scout_reasoning?: GptScoutReasoning;
+  llm_reasoning?: LlmTacticalReasoning;
+  scout_reasoning?: LlmScoutReasoning;
   retrieved_knowledge?: RetrievedKnowledge[];
 };
 
@@ -78,28 +78,28 @@ export type ScoutReport = {
   transfer_value: string;
   similar_players: Player[];
   retrieved_knowledge?: RetrievedKnowledge[];
-  scout_reasoning?: GptScoutReasoning;
-  gpt_tactical_reasoning?: GptTacticalReasoning;
-  comparison_analysis?: GptComparisonAnalysis;
+  scout_reasoning?: LlmScoutReasoning;
+  llm_tactical_reasoning?: LlmTacticalReasoning;
+  comparison_analysis?: LlmComparisonAnalysis;
   final_report_markdown?: string;
   llm_model?: string;
 };
 
-export type GptScoutReasoning = {
+export type LlmScoutReasoning = {
   strengths?: string[];
   weaknesses?: string[];
   development_areas?: string[];
   model?: string;
 };
 
-export type GptTacticalReasoning = {
+export type LlmTacticalReasoning = {
   tactical_suitability?: string[];
   tactical_risks?: string[];
   formation_fit?: string[];
   model?: string;
 };
 
-export type GptComparisonAnalysis = {
+export type LlmComparisonAnalysis = {
   similarities?: string[];
   differences?: string[];
   recruitment_meaning?: string;

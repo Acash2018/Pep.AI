@@ -1,87 +1,98 @@
 import json
 import os
 from typing import Any
+from urllib.error import URLError
+from urllib.request import Request, urlopen
 
 from dotenv import load_dotenv
-from openai import OpenAI
 
 from app.services.prompts import (
-    COMPARISON_AGENT_GPT_PROMPT,
-    REPORT_WRITER_GPT_PROMPT,
-    SCOUT_AGENT_GPT_PROMPT,
-    TACTICAL_FIT_GPT_PROMPT,
+    COMPARISON_AGENT_LLM_PROMPT,
+    REPORT_WRITER_LLM_PROMPT,
+    SCOUT_AGENT_LLM_PROMPT,
+    TACTICAL_FIT_LLM_PROMPT,
 )
 
 load_dotenv()
 
-OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4.1')
+OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434').rstrip('/')
+OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'llama3.1')
 
 
-class OpenAIService:
-    def __init__(self):
-        api_key = os.getenv('OPENAI_API_KEY')
-        if api_key and api_key != 'your-openai-api-key':
-            self.client = OpenAI(api_key=api_key)
-        else:
-            self.client = None
-
+class OllamaService:
     @property
     def enabled(self) -> bool:
-        return self.client is not None
+        try:
+            request = Request(f'{OLLAMA_BASE_URL}/api/tags', method='GET')
+            with urlopen(request, timeout=2):
+                return True
+        except (OSError, URLError):
+            return False
+
+    @property
+    def model_name(self) -> str:
+        return f'ollama:{OLLAMA_MODEL}' if self.enabled else 'deterministic-fallback'
 
     def generate_scout_reasoning(self, context: dict[str, Any]) -> dict[str, Any]:
         fallback = _fallback_scout_reasoning(context)
-        return self._json_completion(SCOUT_AGENT_GPT_PROMPT, context, fallback)
+        return self._json_completion(SCOUT_AGENT_LLM_PROMPT, context, fallback)
 
     def generate_tactical_reasoning(self, context: dict[str, Any]) -> dict[str, Any]:
         fallback = _fallback_tactical_reasoning(context)
-        return self._json_completion(TACTICAL_FIT_GPT_PROMPT, context, fallback)
+        return self._json_completion(TACTICAL_FIT_LLM_PROMPT, context, fallback)
 
     def generate_comparison_analysis(self, context: dict[str, Any]) -> dict[str, Any]:
         fallback = _fallback_comparison_analysis(context)
-        return self._json_completion(COMPARISON_AGENT_GPT_PROMPT, context, fallback)
+        return self._json_completion(COMPARISON_AGENT_LLM_PROMPT, context, fallback)
 
     def generate_final_report(self, context: dict[str, Any]) -> str:
         fallback = _fallback_final_report(context)
-        if not self.client:
+        response = self._chat_completion(REPORT_WRITER_LLM_PROMPT, context, json_output=False)
+        if not response:
             return fallback
-
-        try:
-            response = self.client.chat.completions.create(
-                model=OPENAI_MODEL,
-                messages=[
-                    {'role': 'system', 'content': REPORT_WRITER_GPT_PROMPT.strip()},
-                    {'role': 'user', 'content': _compact_json(context)},
-                ],
-                temperature=0.25,
-            )
-            return response.choices[0].message.content or fallback
-        except Exception:
-            return fallback
+        return response
 
     def _json_completion(self, system_prompt: str, context: dict[str, Any], fallback: dict[str, Any]) -> dict[str, Any]:
-        if not self.client:
+        response = self._chat_completion(
+            system_prompt + '\nReturn strict JSON only. Do not wrap in markdown.',
+            context,
+            json_output=True,
+        )
+        if not response:
             return fallback
 
         try:
-            response = self.client.chat.completions.create(
-                model=OPENAI_MODEL,
-                messages=[
-                    {
-                        'role': 'system',
-                        'content': (
-                            system_prompt.strip()
-                            + '\nReturn strict JSON only. Do not wrap in markdown.'
-                        ),
-                    },
-                    {'role': 'user', 'content': _compact_json(context)},
-                ],
-                temperature=0.2,
-            )
-            content = response.choices[0].message.content or ''
-            return json.loads(content)
-        except Exception:
+            return json.loads(response)
+        except json.JSONDecodeError:
             return fallback
+
+    def _chat_completion(self, system_prompt: str, context: dict[str, Any], json_output: bool) -> str | None:
+        payload: dict[str, Any] = {
+            'model': OLLAMA_MODEL,
+            'stream': False,
+            'messages': [
+                {'role': 'system', 'content': system_prompt.strip()},
+                {'role': 'user', 'content': _compact_json(context)},
+            ],
+            'options': {
+                'temperature': 0.2,
+            },
+        }
+        if json_output:
+            payload['format'] = 'json'
+
+        try:
+            request = Request(
+                f'{OLLAMA_BASE_URL}/api/chat',
+                data=json.dumps(payload).encode('utf-8'),
+                headers={'Content-Type': 'application/json'},
+                method='POST',
+            )
+            with urlopen(request, timeout=90) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                return data.get('message', {}).get('content')
+        except (OSError, URLError, json.JSONDecodeError):
+            return None
 
 
 def _compact_json(context: dict[str, Any]) -> str:
@@ -166,4 +177,4 @@ def _bullet_list(items: list[Any]) -> str:
     return '\n'.join(f"- {item}" for item in items) if items else '- No major item returned.'
 
 
-openai_service = OpenAIService()
+ollama_service = OllamaService()

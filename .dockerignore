@@ -1,0 +1,13 @@
+**/.git
+**/.next
+**/node_modules
+**/__pycache__
+**/*.pyc
+**/.venv
+**/venv
+**/.env
+**/.env.*
+backend/chromadb
+backend/pep_ai.db
+frontend/npm-debug.log*
+README.md

@@ -7,7 +7,7 @@ from app.services.prompts import (
     TACTICAL_FIT_AGENT_PROMPT,
 )
 from app.services.knowledge_base import knowledge_base_service
-from app.services.openai_service import openai_service
+from app.services.ollama_service import ollama_service
 from app.services.player_comparison import PlayerComparisonEngine
 from app.services.role_matching import RoleMatchingService
 from app.services.state import ScoutState
@@ -95,7 +95,7 @@ def tactical_fit_agent_node(state: ScoutState) -> ScoutState:
         comparison_candidates=state.get('similar_players', []),
         stats_analysis=state.get('stats_analysis', {}),
     )
-    scout_reasoning = openai_service.generate_scout_reasoning(llm_context)
+    scout_reasoning = ollama_service.generate_scout_reasoning(llm_context)
 
     system_words = set(requested_system.lower().replace('&', ' ').replace('-', ' ').split())
     style_words = set(player_style.lower().replace('&', ' ').replace('-', ' ').split())
@@ -131,7 +131,7 @@ def tactical_fit_agent_node(state: ScoutState) -> ScoutState:
         'retrieved_knowledge': retrieved_knowledge,
         'style_overlap_score': overlap,
     }
-    tactical_reasoning_llm = openai_service.generate_tactical_reasoning(
+    tactical_reasoning_llm = ollama_service.generate_tactical_reasoning(
         {
             **llm_context,
             'tactical_fit': tactical_fit,
@@ -147,7 +147,7 @@ def tactical_fit_agent_node(state: ScoutState) -> ScoutState:
         'retrieved_knowledge': retrieved_knowledge,
         'tactical_fit': {
             **tactical_fit,
-            'gpt_reasoning': tactical_reasoning_llm,
+            'llm_reasoning': tactical_reasoning_llm,
             'scout_reasoning': scout_reasoning,
         },
     }
@@ -159,7 +159,7 @@ def report_writer_agent_node(state: ScoutState) -> ScoutState:
     tactical_fit = state['tactical_fit']
     tactical_score = state['tactical_score']
     role_match = state['role_match']
-    comparison_analysis = openai_service.generate_comparison_analysis(
+    comparison_analysis = ollama_service.generate_comparison_analysis(
         _llm_context(
             player=player,
             requested_system=tactical_fit['system'],
@@ -201,7 +201,7 @@ def report_writer_agent_node(state: ScoutState) -> ScoutState:
         'similar_players': state['similar_players'],
         'retrieved_knowledge': state.get('retrieved_knowledge', []),
     }
-    final_report_markdown = openai_service.generate_final_report(
+    final_report_markdown = ollama_service.generate_final_report(
         _llm_context(
             player=player,
             requested_system=tactical_fit['system'],
@@ -227,10 +227,10 @@ def report_writer_agent_node(state: ScoutState) -> ScoutState:
             'prompt': REPORT_WRITER_AGENT_PROMPT.strip(),
             **deterministic_report,
             'scout_reasoning': state.get('scout_reasoning', {}),
-            'gpt_tactical_reasoning': state.get('tactical_reasoning_llm', {}),
+            'llm_tactical_reasoning': state.get('tactical_reasoning_llm', {}),
             'comparison_analysis': comparison_analysis,
             'final_report_markdown': final_report_markdown,
-            'llm_model': 'gpt-4.1' if openai_service.enabled else 'deterministic-fallback',
+            'llm_model': ollama_service.model_name,
         },
     }
 

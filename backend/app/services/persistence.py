@@ -21,7 +21,7 @@ from app.services.intelligence_metrics import (
     scouting_confidence_score,
 )
 
-CACHE_VERSION = 'football-intelligence-v4-gpt41'
+CACHE_VERSION = 'football-intelligence-v5-ollama'
 
 
 class PlayerPersistenceService:

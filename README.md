@@ -42,7 +42,7 @@ The app is designed to answer questions such as:
 
 - FastAPI
 - LangGraph
-- OpenAI GPT-4.1
+- Ollama local LLM reasoning
 - ChromaDB
 - SQLAlchemy
 - PostgreSQL via `psycopg`
@@ -116,16 +116,16 @@ backend/app/services/state.py
 
 The current workflow is deterministic and service-driven, but the structure is ready for deeper LLM-backed agent reasoning later.
 
-### OpenAI GPT-4.1
+### Ollama
 
-OpenAI GPT-4.1 is used as a reasoning and report-writing layer on top of Pep.AI's deterministic football intelligence.
+Ollama is used as the local LLM runtime for Pep.AI's reasoning and report-writing layer.
 
-Important: GPT-4.1 does not replace Pep.AI's retrieval, metadata filtering, tactical scoring, role matching, or comparison logic. Those systems still run first and produce the factual evidence. GPT-4.1 receives that assembled context and explains it in professional scouting language.
+Important: Ollama does not replace Pep.AI's retrieval, metadata filtering, tactical scoring, role matching, or comparison logic. Those systems still run first and produce the factual evidence. The local Ollama model receives that assembled context and explains it in professional scouting language.
 
 Main file:
 
 ```text
-backend/app/services/openai_service.py
+backend/app/services/ollama_service.py
 ```
 
 Prompt definitions:
@@ -134,14 +134,14 @@ Prompt definitions:
 backend/app/services/prompts.py
 ```
 
-GPT-4.1 is used for:
+The Ollama reasoning layer is used for:
 
 - Scout Agent reasoning: strengths, weaknesses, development areas
 - Tactical Fit Agent reasoning: tactical suitability, tactical risks, formation fit
 - Comparison Agent reasoning: stylistic similarities and differences
 - Report Writer Agent output: final professional scouting report
 
-The GPT layer receives:
+The local LLM receives:
 
 - player profile
 - tactical metadata
@@ -156,11 +156,11 @@ The GPT layer receives:
 Environment variables:
 
 ```env
-OPENAI_API_KEY=your-openai-api-key
-OPENAI_MODEL=gpt-4.1
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.1
 ```
 
-If `OPENAI_API_KEY` is missing or still set to the placeholder value, Pep.AI uses deterministic fallback text and the app continues working locally.
+If Ollama is not running, Pep.AI uses deterministic fallback text and the app continues working locally.
 
 ### ChromaDB
 
@@ -904,6 +904,121 @@ The response then powers the dashboard, saved reports page, history page, compar
 
 ## Quick Start
 
+## Docker Quick Start
+
+Pep.AI can run as a Docker Compose stack with:
+
+- Next.js frontend
+- FastAPI backend
+- PostgreSQL database
+- persistent ChromaDB volume
+
+### 1. Copy Docker Environment
+
+From the project root:
+
+```powershell
+Copy-Item .env.docker.example .env
+```
+
+Edit `.env`:
+
+```env
+POSTGRES_DB=pep_ai
+POSTGRES_USER=pep_user
+POSTGRES_PASSWORD=change-this-password
+
+OLLAMA_BASE_URL=http://ollama:11434
+OLLAMA_MODEL=llama3.1
+
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api
+```
+
+For local development, Pep.AI will use deterministic fallback reasoning if Ollama is not running or the configured model has not been pulled.
+
+### 2. Build And Run
+
+```powershell
+docker compose up --build
+```
+
+Services:
+
+```text
+Frontend: http://localhost:3000
+Backend:  http://localhost:8000
+Postgres: localhost:5432
+```
+
+### 3. Stop The Stack
+
+```powershell
+docker compose down
+```
+
+### 4. Stop And Delete Volumes
+
+Use this only when you want to erase local database and Chroma data:
+
+```powershell
+docker compose down -v
+```
+
+### Docker Files
+
+```text
+backend/Dockerfile
+frontend/Dockerfile
+docker-compose.yml
+docker-compose.prod.yml
+.env.docker.example
+.dockerignore
+```
+
+### Production Compose
+
+For a server such as Amazon Lightsail, use:
+
+```powershell
+docker compose -f docker-compose.prod.yml up --build -d
+```
+
+Set production values in `.env`:
+
+```env
+POSTGRES_PASSWORD=strong-production-password
+OLLAMA_BASE_URL=http://ollama:11434
+OLLAMA_MODEL=llama3.1
+NEXT_PUBLIC_API_BASE_URL=https://api.your-domain.com/api
+```
+
+For a simple single-host deployment, you can also set:
+
+```env
+NEXT_PUBLIC_API_BASE_URL=http://your-server-ip:8000/api
+```
+
+Use a reverse proxy such as Caddy or Nginx for HTTPS when deploying publicly.
+
+### Docker Persistence
+
+Docker Compose creates two named volumes:
+
+```text
+postgres_data
+chroma_data
+```
+
+These store:
+
+- persisted players
+- saved scouting reports
+- tactical profile history
+- comparison history
+- ChromaDB vector data
+
+As long as you do not run `docker compose down -v`, this data survives container restarts.
+
 ### 1. Backend
 
 From the project root:
@@ -956,7 +1071,8 @@ Copy-Item .env.example .env
 Example values:
 
 ```env
-OPENAI_API_KEY=your-openai-api-key
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.1
 CHROMA_PERSIST_DIR=./chromadb
 DATABASE_URL=postgresql+psycopg://pep_user:pep_password@localhost:5432/pep_ai
 LANGGRAPH_API_KEY=your-langgraph-api-key
@@ -1569,7 +1685,7 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/memory/players/p1/timeline"
 - Generated scouting reports and player memory are persisted in the SQL database.
 - ChromaDB persists vector data under `CHROMA_PERSIST_DIR`.
 - The local embedding service is deterministic and API-free.
-- OpenAI is included as a dependency but current deterministic workflows do not require an API key.
+- Ollama is used for local LLM reasoning when available; deterministic fallback text is used when Ollama is offline.
 - If Next.js cache errors occur on Windows/OneDrive, stop Node processes and delete `frontend/.next`.
 
 ## Troubleshooting
