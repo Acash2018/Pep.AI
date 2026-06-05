@@ -13,7 +13,6 @@ from app.db.models import (
     ScoutingReport,
     TacticalProfile,
 )
-from app.db.session import SessionLocal
 from app.services.intelligence_metrics import (
     consistency_score,
     development_trajectory_notes,
@@ -192,28 +191,26 @@ class HistoryPersistenceService:
         return [serialize_comparison(comparison) for comparison in comparisons]
 
 
-def persist_scouting_result(request: Any, payload: dict[str, Any]) -> dict[str, Any]:
-    with SessionLocal() as db:
-        player_service = PlayerPersistenceService(db)
-        report_service = ScoutingReportPersistenceService(db)
-        profile_service = TacticalProfilePersistenceService(db)
-        history_service = HistoryPersistenceService(db)
+def persist_scouting_result(db: Session, request: Any, payload: dict[str, Any]) -> dict[str, Any]:
+    player_service = PlayerPersistenceService(db)
+    report_service = ScoutingReportPersistenceService(db)
+    profile_service = TacticalProfilePersistenceService(db)
+    history_service = HistoryPersistenceService(db)
 
-        player = player_service.upsert_player(payload['player'])
-        report = report_service.save_report(player, request, payload)
-        profile_service.save_profile(player, report.report_payload)
-        history_service.save_comparisons(player, report.report_payload.get('similar_players', []))
-        db.commit()
-        return dict(report.report_payload)
+    player = player_service.upsert_player(payload['player'])
+    report = report_service.save_report(player, request, payload)
+    profile_service.save_profile(player, report.report_payload)
+    history_service.save_comparisons(player, report.report_payload.get('similar_players', []))
+    db.commit()
+    return dict(report.report_payload)
 
 
-def get_cached_scouting_result(request: Any) -> dict[str, Any] | None:
-    with SessionLocal() as db:
-        return ScoutingReportPersistenceService(db).get_cached_report(
-            request.player_id,
-            request.club,
-            request.preferred_system,
-        )
+def get_cached_scouting_result(db: Session, request: Any) -> dict[str, Any] | None:
+    return ScoutingReportPersistenceService(db).get_cached_report(
+        request.player_id,
+        request.club,
+        request.preferred_system,
+    )
 
 
 def serialize_player(player: Player) -> dict[str, Any]:

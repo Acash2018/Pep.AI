@@ -1,7 +1,6 @@
-import type { Metadata } from 'next';
 import './globals.css';
 
-export const metadata: Metadata = {
+export const metadata = {
   title: 'Pep.AI | Football Scouting',
   description: 'AI-powered football scouting dashboard',
 };

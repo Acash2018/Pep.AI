@@ -14,7 +14,6 @@ class ScoutPlayerRequest(BaseModel):
     club: str = ''
     preferred_system: str
     force_refresh: bool = False
-    force_refresh: bool = False
 
 
 class ScoutPlayerResponse(BaseModel):

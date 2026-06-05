@@ -5,13 +5,14 @@ from urllib.request import urlopen
 
 from app.data.dynamic_players import replace_ingested_players
 from app.services.football_metadata import enrich_player_metadata
+from sqlalchemy.orm import Session
 
 BASE_URL = 'https://raw.githubusercontent.com/statsbomb/open-data/master/data'
 DEFAULT_COMPETITION_ID = 9
 DEFAULT_SEASON_ID = 281
 
 
-def ingest_statsbomb_players(max_matches: int = 6, min_events: int = 12) -> dict[str, Any]:
+def ingest_statsbomb_players(max_matches: int = 6, min_events: int = 12, db: Session | None = None) -> dict[str, Any]:
     matches = _fetch_json(f'{BASE_URL}/matches/{DEFAULT_COMPETITION_ID}/{DEFAULT_SEASON_ID}.json')
     selected_matches = matches[:max_matches]
 
@@ -35,7 +36,9 @@ def ingest_statsbomb_players(max_matches: int = 6, min_events: int = 12) -> dict
         _merge_events(player_profiles, player_stats, _fetch_json(f'{BASE_URL}/events/{match_id}.json'))
 
     players = _build_players(player_profiles, player_stats, min_events)
-    replace_ingested_players(players)
+    replace_ingested_players(players, db=db)
+    if db is not None:
+        db.commit()
 
     return {
         'source': 'StatsBomb Open Data',

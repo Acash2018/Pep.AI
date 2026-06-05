@@ -19,6 +19,9 @@ venv/
 
 # Local databases / generated stores
 chromadb/
+*.db
+*.db-shm
+*.db-wal
 
 # Environment
 .env

@@ -13,6 +13,7 @@ from app.services.persistence import (
 )
 from app.services.statsbomb import ingest_statsbomb_players
 from app.models import ReportRequest, ScoutPlayerRequest, ScoutPlayerResponse
+from app.services.ollama_service import ollama_service
 
 router = APIRouter()
 
@@ -36,9 +37,9 @@ def players_scout_candidates(system: str, min_fit: int = 54):
 
 
 @router.post('/players/ingest/statsbomb')
-def ingest_statsbomb(max_matches: int = 6):
+def ingest_statsbomb(max_matches: int = 6, db: Session = Depends(get_db)):
     try:
-        return ingest_statsbomb_players(max_matches=max_matches)
+        return ingest_statsbomb_players(max_matches=max_matches, db=db)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f'Unable to ingest StatsBomb data: {exc}') from exc
 
@@ -90,18 +91,26 @@ def saved_reports(limit: int = 50, db: Session = Depends(get_db)):
 def saved_comparisons(player_id: str, db: Session = Depends(get_db)):
     return {'comparisons': HistoryPersistenceService(db).comparison_history(player_id)}
 
+@router.get('/health')
+def health():
+    return {
+        'status': 'ok',
+        'ollama': ollama_service.health_status(),
+    }
+
+
 @router.post('/reports')
-def create_report(request: ReportRequest):
+def create_report(request: ReportRequest, db: Session = Depends(get_db)):
     try:
-        report = generate_scouting_report(request)
+        report = generate_scouting_report(request, db=db)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {'report': report}
 
 
 @router.post('/scout-player', response_model=ScoutPlayerResponse)
-def scout_player_endpoint(request: ScoutPlayerRequest):
+def scout_player_endpoint(request: ScoutPlayerRequest, db: Session = Depends(get_db)):
     try:
-        return scout_player(request)
+        return scout_player(request, db=db)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

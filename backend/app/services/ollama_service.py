@@ -1,5 +1,8 @@
 import json
+import logging
 import os
+from dataclasses import dataclass
+from enum import Enum
 from typing import Any
 from urllib.error import URLError
 from urllib.request import Request, urlopen
@@ -17,17 +20,54 @@ load_dotenv()
 
 OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434').rstrip('/')
 OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'llama3.1')
+logger = logging.getLogger(__name__)
+
+
+class OllamaFailureKind(str, Enum):
+    UNAVAILABLE = 'unavailable'
+    INVALID_JSON = 'invalid_json'
+    EMPTY_RESPONSE = 'empty_response'
+    REQUEST_ERROR = 'request_error'
+
+
+@dataclass
+class OllamaCompletionResult:
+    content: str | None
+    failure_kind: OllamaFailureKind | None = None
+    detail: str = ''
 
 
 class OllamaService:
     @property
     def enabled(self) -> bool:
+        return self.health_status()['available']
+
+    def health_status(self) -> dict[str, Any]:
         try:
             request = Request(f'{OLLAMA_BASE_URL}/api/tags', method='GET')
-            with urlopen(request, timeout=2):
-                return True
-        except (OSError, URLError):
-            return False
+            with urlopen(request, timeout=2) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                models = [
+                    model.get('name', '')
+                    for model in data.get('models', [])
+                    if isinstance(model, dict)
+                ]
+                return {
+                    'available': True,
+                    'base_url': OLLAMA_BASE_URL,
+                    'model': OLLAMA_MODEL,
+                    'models': models,
+                    'model_loaded': any(name.split(':')[0] == OLLAMA_MODEL.split(':')[0] for name in models),
+                }
+        except (OSError, URLError, json.JSONDecodeError) as exc:
+            return {
+                'available': False,
+                'base_url': OLLAMA_BASE_URL,
+                'model': OLLAMA_MODEL,
+                'models': [],
+                'model_loaded': False,
+                'error': str(exc),
+            }
 
     @property
     def model_name(self) -> str:
@@ -48,9 +88,10 @@ class OllamaService:
     def generate_final_report(self, context: dict[str, Any]) -> str:
         fallback = _fallback_final_report(context)
         response = self._chat_completion(REPORT_WRITER_LLM_PROMPT, context, json_output=False)
-        if not response:
+        if not response.content:
+            _log_fallback('final_report', response)
             return fallback
-        return response
+        return response.content
 
     def _json_completion(self, system_prompt: str, context: dict[str, Any], fallback: dict[str, Any]) -> dict[str, Any]:
         response = self._chat_completion(
@@ -58,15 +99,24 @@ class OllamaService:
             context,
             json_output=True,
         )
-        if not response:
+        if not response.content:
+            _log_fallback('json_completion', response)
             return fallback
 
         try:
-            return json.loads(response)
-        except json.JSONDecodeError:
+            return json.loads(response.content)
+        except json.JSONDecodeError as exc:
+            _log_fallback(
+                'json_completion',
+                OllamaCompletionResult(
+                    content=response.content,
+                    failure_kind=OllamaFailureKind.INVALID_JSON,
+                    detail=str(exc),
+                ),
+            )
             return fallback
 
-    def _chat_completion(self, system_prompt: str, context: dict[str, Any], json_output: bool) -> str | None:
+    def _chat_completion(self, system_prompt: str, context: dict[str, Any], json_output: bool) -> OllamaCompletionResult:
         payload: dict[str, Any] = {
             'model': OLLAMA_MODEL,
             'stream': False,
@@ -90,9 +140,36 @@ class OllamaService:
             )
             with urlopen(request, timeout=90) as response:
                 data = json.loads(response.read().decode('utf-8'))
-                return data.get('message', {}).get('content')
-        except (OSError, URLError, json.JSONDecodeError):
-            return None
+                content = data.get('message', {}).get('content')
+                if not content:
+                    return OllamaCompletionResult(
+                        content=None,
+                        failure_kind=OllamaFailureKind.EMPTY_RESPONSE,
+                        detail='Ollama returned no message content.',
+                    )
+                return OllamaCompletionResult(content=content)
+        except json.JSONDecodeError as exc:
+            return OllamaCompletionResult(
+                content=None,
+                failure_kind=OllamaFailureKind.INVALID_JSON,
+                detail=str(exc),
+            )
+        except (OSError, URLError) as exc:
+            return OllamaCompletionResult(
+                content=None,
+                failure_kind=OllamaFailureKind.UNAVAILABLE,
+                detail=str(exc),
+            )
+
+
+def _log_fallback(operation: str, result: OllamaCompletionResult) -> None:
+    if result.failure_kind:
+        logger.warning(
+            'Ollama fallback used for %s: %s (%s)',
+            operation,
+            result.failure_kind.value,
+            result.detail,
+        )
 
 
 def _compact_json(context: dict[str, Any]) -> str:

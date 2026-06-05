@@ -1,9 +1,9 @@
 from typing import Any
 
-from app.services.embeddings import EmbeddingsService
+from app.services.embeddings import EmbeddingsService, OLLAMA_EMBEDDING_MODEL
 from app.utils.chromadb_client import get_collection
 
-COLLECTION_NAME = 'football_knowledge_base'
+COLLECTION_NAME = f"football_knowledge_base_{OLLAMA_EMBEDDING_MODEL.replace(':', '_').replace('.', '_')}"
 
 
 class VectorSearchService:

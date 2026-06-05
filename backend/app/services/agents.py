@@ -1,13 +1,26 @@
 from dotenv import load_dotenv
+from sqlalchemy.orm import Session
+
+from app.db.session import SessionLocal
 from app.models import ReportRequest, ScoutPlayerRequest
 from app.services.persistence import get_cached_scouting_result, persist_scouting_result
 from app.services.workflow import scouting_graph
 
 load_dotenv()
 
-def scout_player(request: ScoutPlayerRequest) -> dict:
+def scout_player(request: ScoutPlayerRequest, db: Session | None = None) -> dict:
+    owns_session = db is None
+    db = db or SessionLocal()
+    try:
+        return _scout_player_with_session(request, db)
+    finally:
+        if owns_session:
+            db.close()
+
+
+def _scout_player_with_session(request: ScoutPlayerRequest, db: Session) -> dict:
     if not getattr(request, 'force_refresh', False):
-        cached = get_cached_scouting_result(request)
+        cached = get_cached_scouting_result(db, request)
         if cached:
             return cached
 
@@ -29,14 +42,15 @@ def scout_player(request: ScoutPlayerRequest) -> dict:
         'similar_players': final_state['similar_players'],
         'report': report,
     }
-    return persist_scouting_result(request, payload)
+    return persist_scouting_result(db, request, payload)
 
 
-def generate_scouting_report(request: ReportRequest) -> dict:
+def generate_scouting_report(request: ReportRequest, db: Session | None = None) -> dict:
     return scout_player(
         ScoutPlayerRequest(
             player_id=request.player_id,
             club=request.club,
             preferred_system=request.preferred_system,
-        )
+        ),
+        db=db,
     )

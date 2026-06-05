@@ -118,7 +118,6 @@ export default function HomePage() {
           player_id: playerId,
           club: 'Pep.AI XI',
           preferred_system: preferredSystem,
-          force_refresh: true,
         }),
       });
 
