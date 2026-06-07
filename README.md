@@ -908,10 +908,12 @@ The response then powers the dashboard, saved reports page, history page, compar
 
 Pep.AI can run as a Docker Compose stack with:
 
+- Caddy reverse proxy
 - Next.js frontend
 - FastAPI backend
 - PostgreSQL database
 - persistent ChromaDB volume
+- Ollama local LLM runtime
 
 ### 1. Copy Docker Environment
 
@@ -930,6 +932,7 @@ POSTGRES_PASSWORD=change-this-password
 
 OLLAMA_BASE_URL=http://ollama:11434
 OLLAMA_MODEL=llama3.1
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api
 ```
@@ -948,6 +951,7 @@ Services:
 Frontend: http://localhost:3000
 Backend:  http://localhost:8000
 Postgres: localhost:5432
+Ollama:   localhost:11434
 ```
 
 ### 3. Stop The Stack
@@ -977,7 +981,7 @@ docker-compose.prod.yml
 
 ### Production Compose
 
-For a server such as Amazon Lightsail, use:
+For a single server such as EC2 or Lightsail, use:
 
 ```powershell
 docker compose -f docker-compose.prod.yml up --build -d
@@ -988,25 +992,137 @@ Set production values in `.env`:
 ```env
 POSTGRES_PASSWORD=strong-production-password
 OLLAMA_BASE_URL=http://ollama:11434
-OLLAMA_MODEL=llama3.1
-NEXT_PUBLIC_API_BASE_URL=https://api.your-domain.com/api
+OLLAMA_MODEL=llama3.2:3b
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+NEXT_PUBLIC_API_BASE_URL=/api
 ```
 
-For a simple single-host deployment, you can also set:
+Production Compose includes Caddy, so public traffic can use one origin:
 
-```env
-NEXT_PUBLIC_API_BASE_URL=http://your-server-ip:8000/api
+```text
+http://your-server-ip
+  -> Caddy
+  -> /api/* to FastAPI backend
+  -> everything else to Next.js frontend
 ```
 
-Use a reverse proxy such as Caddy or Nginx for HTTPS when deploying publicly.
+Only port `80` needs to be open publicly. Do not expose `3000`, `8000`, `5432`, or `11434` to the internet.
+
+### EC2 Demo Runbook
+
+Use this when restarting the EC2 instance for future demos.
+
+SSH into the instance:
+
+```powershell
+ssh -i "$env:USERPROFILE\Downloads\pep-ai-key.pem" ec2-user@YOUR_EC2_PUBLIC_IP
+```
+
+Go to the app directory:
+
+```bash
+cd /opt/pep-ai
+```
+
+If Docker Compose is missing and `docker compose` shows `unknown shorthand flag: 'f' in -f`, install the Compose plugin manually:
+
+```bash
+sudo mkdir -p /usr/local/lib/docker/cli-plugins
+
+sudo curl -SL https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64 \
+  -o /usr/local/lib/docker/cli-plugins/docker-compose
+
+sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+sudo mkdir -p /usr/libexec/docker/cli-plugins
+sudo ln -sf /usr/local/lib/docker/cli-plugins/docker-compose /usr/libexec/docker/cli-plugins/docker-compose
+
+sudo docker compose version
+```
+
+Create or refresh the production `.env` file:
+
+```bash
+POSTGRES_PASSWORD="$(openssl rand -hex 24)"
+
+sudo tee .env >/dev/null <<EOF
+POSTGRES_DB=pep_ai
+POSTGRES_USER=pep_user
+POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+
+OLLAMA_BASE_URL=http://ollama:11434
+OLLAMA_MODEL=llama3.2:3b
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+
+NEXT_PUBLIC_API_BASE_URL=/api
+EOF
+```
+
+Start the full production stack:
+
+```bash
+sudo systemctl enable --now docker
+sudo git pull --ff-only
+sudo docker compose -f docker-compose.prod.yml up --build -d
+```
+
+Pull the Ollama models:
+
+```bash
+sudo docker compose -f docker-compose.prod.yml exec -T ollama ollama pull llama3.2:3b
+sudo docker compose -f docker-compose.prod.yml exec -T ollama ollama pull nomic-embed-text
+```
+
+Check container status:
+
+```bash
+sudo docker compose -f docker-compose.prod.yml ps
+```
+
+Check logs:
+
+```bash
+sudo docker compose -f docker-compose.prod.yml logs --tail=120
+```
+
+Test the backend through Caddy:
+
+```bash
+curl http://localhost/api/health
+```
+
+Open the app:
+
+```text
+http://YOUR_EC2_PUBLIC_IP
+```
+
+Stop the app after a demo:
+
+```bash
+cd /opt/pep-ai
+sudo docker compose -f docker-compose.prod.yml down
+```
+
+If Compose is still unavailable but containers are running, stop all running containers:
+
+```bash
+sudo docker ps
+sudo docker stop $(sudo docker ps -q)
+```
+
+To reduce AWS cost, stop the EC2 instance from the AWS Console after the demo.
 
 ### Docker Persistence
 
-Docker Compose creates two named volumes:
+Docker Compose creates named volumes:
 
 ```text
+caddy_data
+caddy_config
 postgres_data
 chroma_data
+ollama_data
 ```
 
 These store:
@@ -1016,6 +1132,8 @@ These store:
 - tactical profile history
 - comparison history
 - ChromaDB vector data
+- Ollama model files
+- Caddy runtime data
 
 As long as you do not run `docker compose down -v`, this data survives container restarts.
 
@@ -1681,10 +1799,10 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/memory/players/p1/timeline"
 
 ## Known Development Notes
 
-- StatsBomb ingested players are stored in memory for the running backend session.
+- StatsBomb ingested players are persisted in the SQL database.
 - Generated scouting reports and player memory are persisted in the SQL database.
 - ChromaDB persists vector data under `CHROMA_PERSIST_DIR`.
-- The local embedding service is deterministic and API-free.
+- The embedding service uses Ollama embeddings when available and deterministic fallback vectors when Ollama is offline.
 - Ollama is used for local LLM reasoning when available; deterministic fallback text is used when Ollama is offline.
 - If Next.js cache errors occur on Windows/OneDrive, stop Node processes and delete `frontend/.next`.
 
