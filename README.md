@@ -1113,6 +1113,82 @@ sudo docker stop $(sudo docker ps -q)
 
 To reduce AWS cost, stop the EC2 instance from the AWS Console after the demo.
 
+### ECS/Fargate + RDS + ALB Deployment
+
+Pep.AI also includes a production-style AWS deployment scaffold under:
+
+```text
+infra/terraform/
+deploy/ecs/push-images.ps1
+```
+
+This deployment uses:
+
+- Amazon ECS on Fargate for the frontend and backend containers
+- Amazon ECR for Docker image repositories
+- Application Load Balancer for public HTTP traffic
+- Path-based ALB routing:
+  - `/api/*` -> FastAPI backend
+  - everything else -> Next.js frontend
+- Amazon RDS PostgreSQL for persistent scouting memory
+- Amazon EFS mounted into the backend for ChromaDB persistence
+- AWS Secrets Manager for `DATABASE_URL`
+- CloudWatch Logs for container logs
+
+High-level architecture:
+
+```text
+Browser
+  -> Application Load Balancer
+      -> /api/* to backend ECS service
+      -> /* to frontend ECS service
+
+Backend ECS service
+  -> RDS PostgreSQL
+  -> EFS /app/chromadb
+  -> Ollama endpoint if configured
+```
+
+First create the ECR repositories:
+
+```powershell
+cd infra/terraform
+Copy-Item terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars and set db_password.
+terraform init
+terraform apply `
+  -target=aws_ecr_repository.frontend `
+  -target=aws_ecr_repository.backend
+```
+
+Build and push images:
+
+```powershell
+cd ..\..
+.\deploy\ecs\push-images.ps1 -Region us-east-1
+```
+
+Deploy the full AWS stack:
+
+```powershell
+cd infra/terraform
+terraform apply
+```
+
+Get the public ALB URL:
+
+```powershell
+terraform output alb_dns_name
+```
+
+Destroy the stack when finished to avoid ongoing costs:
+
+```powershell
+terraform destroy
+```
+
+This ECS/Fargate deployment is more production-like than the EC2 Docker Compose demo, but it is also more expensive. Use it when you want the stronger AWS architecture story.
+
 ### Docker Persistence
 
 Docker Compose creates named volumes:

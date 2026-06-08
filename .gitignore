@@ -23,6 +23,13 @@ chromadb/
 *.db-shm
 *.db-wal
 
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+
 # Environment
 .env
 .env.*

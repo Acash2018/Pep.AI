@@ -1,0 +1,14 @@
+aws_region   = "us-east-1"
+project_name = "pep-ai"
+image_tag    = "latest"
+
+db_name     = "pep_ai"
+db_username = "pep_user"
+db_password = "replace-with-a-strong-password"
+
+desired_count = 1
+
+# Keep this disabled unless you deploy a separate Ollama service.
+ollama_base_url        = "http://ollama.disabled:11434"
+ollama_model           = "llama3.2:3b"
+ollama_embedding_model = "nomic-embed-text"
