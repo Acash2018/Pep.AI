@@ -10,6 +10,7 @@ This Terraform stack deploys Pep.AI to AWS with:
 - Ollama as a backend ECS sidecar for local LLM reasoning
 - AWS Secrets Manager for the backend `DATABASE_URL`
 - CloudWatch Logs for frontend and backend task logs
+- Optional S3-triggered Lambda ingestion for player JSON/CSV uploads
 
 ## Architecture
 
@@ -23,6 +24,11 @@ Backend ECS service
   -> RDS PostgreSQL
   -> EFS-mounted /app/chromadb
   -> Ollama sidecar at http://127.0.0.1:11434
+
+Optional ingestion path
+  -> S3 upload under uploads/
+  -> Lambda
+  -> RDS PostgreSQL players table
 ```
 
 ## Cost Notes
@@ -33,6 +39,36 @@ The stack intentionally avoids NAT Gateways by running Fargate tasks in public s
 Ollama runs inside the backend ECS task as a sidecar container. That makes the project demo stronger because the deployed app uses local model reasoning instead of only deterministic fallback, but it increases Fargate cost. The default backend task size is `2 vCPU / 8 GB` so `llama3.2:3b` has enough memory to run reliably on CPU.
 
 The first backend deployment after enabling Ollama can take several minutes because the sidecar pulls the model. Model files are stored on EFS at `/root/.ollama`, so future task restarts do not need to download everything again unless the EFS volume is deleted.
+
+## AWS WAF Access Control
+
+The ALB is protected by AWS WAF:
+
+- default action is `block`
+- only CIDRs in `allowed_ip_cidrs` are allowed
+- allowed clients must also geolocate to the United States
+- allowed clients are rate-limited after `waf_rate_limit` requests per 5-minute window per IP
+
+Find your current public IP:
+
+```powershell
+curl.exe https://checkip.amazonaws.com
+```
+
+Set it in `terraform.tfvars`:
+
+```hcl
+allowed_ip_cidrs = ["YOUR_PUBLIC_IP/32"]
+waf_rate_limit   = 100
+```
+
+Then apply:
+
+```powershell
+terraform apply
+```
+
+If the browser cannot reach the app later, your public IP may have changed. Update `allowed_ip_cidrs` and re-apply Terraform.
 
 ## First-Time Deploy
 
@@ -83,6 +119,39 @@ Open:
 
 ```text
 http://ALB_DNS_NAME
+```
+
+## Optional S3/Lambda Player Ingestion
+
+Build the Lambda artifact from the repo root:
+
+```powershell
+cd backend\lambda_ingest
+python -m pip install -r requirements.txt -t package
+Copy-Item handler.py package\
+Compress-Archive -Path package\* -DestinationPath lambda_ingest.zip -Force
+```
+
+Then enable the Lambda in `terraform.tfvars`:
+
+```hcl
+enable_s3_lambda_ingestion = true
+lambda_ingest_zip_path     = "../../backend/lambda_ingest/lambda_ingest.zip"
+lambda_ingest_prefix       = "uploads/"
+```
+
+Apply Terraform and upload `.json` or `.csv` files to the output bucket under the trigger prefix:
+
+```powershell
+terraform apply
+terraform output s3_ingestion_bucket_name
+aws s3 cp players.json s3://BUCKET_NAME/uploads/players.json
+```
+
+The file should contain either a JSON list, a JSON object with a `players` list, or a CSV with columns such as:
+
+```text
+id,name,position,club,nationality,age,estimatedValue
 ```
 
 ## Update Images

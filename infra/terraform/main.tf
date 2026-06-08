@@ -167,6 +167,72 @@ resource "aws_security_group" "rds" {
     protocol        = "tcp"
     security_groups = [aws_security_group.backend.id]
   }
+
+  ingress {
+    description     = "PostgreSQL from S3 ingestion Lambda"
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [aws_security_group.lambda_ingest.id]
+  }
+}
+
+resource "aws_security_group" "lambda_ingest" {
+  name        = "${local.name}-lambda-ingest-sg"
+  description = "Allow S3 ingestion Lambda to reach PostgreSQL."
+  vpc_id      = aws_vpc.main.id
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_security_group" "vpc_endpoint" {
+  name        = "${local.name}-vpc-endpoint-sg"
+  description = "Allow Lambda to reach private AWS service endpoints."
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description     = "HTTPS from Lambda ingestion"
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    security_groups = [aws_security_group.lambda_ingest.id, aws_security_group.backend.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id            = aws_vpc.main.id
+  service_name      = "com.amazonaws.${var.aws_region}.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = [aws_vpc.main.default_route_table_id]
+
+  tags = {
+    Name = "${local.name}-s3-endpoint"
+  }
+}
+
+resource "aws_vpc_endpoint" "secretsmanager" {
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${var.aws_region}.secretsmanager"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [for subnet in aws_subnet.private : subnet.id]
+  security_group_ids  = [aws_security_group.vpc_endpoint.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name = "${local.name}-secretsmanager-endpoint"
+  }
 }
 
 resource "aws_security_group" "efs" {
@@ -235,6 +301,12 @@ resource "aws_cloudwatch_log_group" "ollama" {
   retention_in_days = 14
 }
 
+resource "aws_cloudwatch_log_group" "lambda_ingest" {
+  count             = var.enable_s3_lambda_ingestion ? 1 : 0
+  name              = "/aws/lambda/${local.name}-s3-player-ingest"
+  retention_in_days = 14
+}
+
 resource "aws_iam_role" "ecs_task_execution" {
   name = "${local.name}-ecs-task-execution"
 
@@ -297,11 +369,238 @@ resource "aws_secretsmanager_secret_version" "database_url" {
   secret_string = "postgresql+psycopg://${var.db_username}:${var.db_password}@${aws_db_instance.postgres.address}:5432/${var.db_name}"
 }
 
+resource "aws_s3_bucket" "ingestion" {
+  bucket_prefix = "${local.name}-player-ingestion-"
+  force_destroy = true
+}
+
+resource "aws_s3_bucket_public_access_block" "ingestion" {
+  bucket                  = aws_s3_bucket.ingestion.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "ingestion" {
+  bucket = aws_s3_bucket.ingestion.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_iam_role" "lambda_ingest" {
+  count = var.enable_s3_lambda_ingestion ? 1 : 0
+  name  = "${local.name}-s3-player-ingest"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "lambda.amazonaws.com"
+      }
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_ingest_basic" {
+  count      = var.enable_s3_lambda_ingestion ? 1 : 0
+  role       = aws_iam_role.lambda_ingest[0].name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_ingest_vpc" {
+  count      = var.enable_s3_lambda_ingestion ? 1 : 0
+  role       = aws_iam_role.lambda_ingest[0].name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
+resource "aws_iam_role_policy" "lambda_ingest_data_access" {
+  count = var.enable_s3_lambda_ingestion ? 1 : 0
+  name  = "${local.name}-s3-player-ingest-data-access"
+  role  = aws_iam_role.lambda_ingest[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject"
+        ]
+        Resource = "${aws_s3_bucket.ingestion.arn}/${var.lambda_ingest_prefix}*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Resource = aws_secretsmanager_secret.database_url.arn
+      }
+    ]
+  })
+}
+
+resource "aws_lambda_function" "s3_player_ingest" {
+  count            = var.enable_s3_lambda_ingestion ? 1 : 0
+  function_name    = "${local.name}-s3-player-ingest"
+  role             = aws_iam_role.lambda_ingest[0].arn
+  handler          = "handler.lambda_handler"
+  runtime          = "python3.12"
+  filename         = var.lambda_ingest_zip_path
+  source_code_hash = filebase64sha256(var.lambda_ingest_zip_path)
+  timeout          = 60
+
+  environment {
+    variables = {
+      DATABASE_SECRET_ARN = aws_secretsmanager_secret.database_url.arn
+    }
+  }
+
+  vpc_config {
+    subnet_ids         = [for subnet in aws_subnet.private : subnet.id]
+    security_group_ids = [aws_security_group.lambda_ingest.id]
+  }
+
+  depends_on = [
+    aws_cloudwatch_log_group.lambda_ingest,
+    aws_iam_role_policy_attachment.lambda_ingest_basic,
+    aws_iam_role_policy_attachment.lambda_ingest_vpc,
+    aws_iam_role_policy.lambda_ingest_data_access,
+    aws_security_group.rds
+  ]
+}
+
+resource "aws_lambda_permission" "allow_s3_ingestion" {
+  count         = var.enable_s3_lambda_ingestion ? 1 : 0
+  statement_id  = "AllowExecutionFromS3"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.s3_player_ingest[0].function_name
+  principal     = "s3.amazonaws.com"
+  source_arn    = aws_s3_bucket.ingestion.arn
+}
+
+resource "aws_s3_bucket_notification" "ingestion" {
+  count  = var.enable_s3_lambda_ingestion ? 1 : 0
+  bucket = aws_s3_bucket.ingestion.id
+
+  lambda_function {
+    lambda_function_arn = aws_lambda_function.s3_player_ingest[0].arn
+    events              = ["s3:ObjectCreated:*"]
+    filter_prefix       = var.lambda_ingest_prefix
+  }
+
+  depends_on = [aws_lambda_permission.allow_s3_ingestion]
+}
+
 resource "aws_lb" "main" {
   name               = "${local.name}-alb"
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
   subnets            = [for subnet in aws_subnet.public : subnet.id]
+}
+
+resource "aws_wafv2_ip_set" "allowed_clients" {
+  name               = "${local.name}-allowed-clients"
+  description        = "Client IPs allowed to access the Pep.AI ALB."
+  scope              = "REGIONAL"
+  ip_address_version = "IPV4"
+  addresses          = var.allowed_ip_cidrs
+}
+
+resource "aws_wafv2_web_acl" "alb" {
+  name        = "${local.name}-alb-waf"
+  description = "Restricts Pep.AI ALB access to allowed clients and rate-limits requests."
+  scope       = "REGIONAL"
+
+  default_action {
+    block {}
+  }
+
+  rule {
+    name     = "rate-limit-allowed-clients"
+    priority = 0
+
+    action {
+      block {}
+    }
+
+    statement {
+      rate_based_statement {
+        limit              = var.waf_rate_limit
+        aggregate_key_type = "IP"
+
+        scope_down_statement {
+          and_statement {
+            statement {
+              ip_set_reference_statement {
+                arn = aws_wafv2_ip_set.allowed_clients.arn
+              }
+            }
+
+            statement {
+              geo_match_statement {
+                country_codes = ["US"]
+              }
+            }
+          }
+        }
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${local.name}-rate-limit-allowed-clients"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  rule {
+    name     = "allow-approved-us-clients"
+    priority = 1
+
+    action {
+      allow {}
+    }
+
+    statement {
+      and_statement {
+        statement {
+          ip_set_reference_statement {
+            arn = aws_wafv2_ip_set.allowed_clients.arn
+          }
+        }
+
+        statement {
+          geo_match_statement {
+            country_codes = ["US"]
+          }
+        }
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${local.name}-allow-approved-us-clients"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  visibility_config {
+    cloudwatch_metrics_enabled = true
+    metric_name                = "${local.name}-alb-waf"
+    sampled_requests_enabled   = true
+  }
+}
+
+resource "aws_wafv2_web_acl_association" "alb" {
+  resource_arn = aws_lb.main.arn
+  web_acl_arn  = aws_wafv2_web_acl.alb.arn
 }
 
 resource "aws_lb_target_group" "frontend" {

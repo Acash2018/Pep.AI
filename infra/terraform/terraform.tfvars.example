@@ -8,7 +8,13 @@ db_password = "replace-with-a-strong-password"
 
 desired_count = 1
 
-# Keep this disabled unless you deploy a separate Ollama service.
-ollama_base_url        = "http://ollama.disabled:11434"
+allowed_ip_cidrs = ["203.0.113.10/32"]
+waf_rate_limit   = 100
+
+ollama_base_url        = "http://127.0.0.1:11434"
 ollama_model           = "llama3.2:3b"
 ollama_embedding_model = "nomic-embed-text"
+
+enable_s3_lambda_ingestion = false
+lambda_ingest_zip_path     = "../../backend/lambda_ingest/lambda_ingest.zip"
+lambda_ingest_prefix       = "uploads/"

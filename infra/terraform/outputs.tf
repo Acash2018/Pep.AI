@@ -32,3 +32,28 @@ output "rds_endpoint" {
   description = "Private RDS PostgreSQL endpoint."
   value       = aws_db_instance.postgres.address
 }
+
+output "waf_web_acl_name" {
+  description = "AWS WAF Web ACL attached to the ALB."
+  value       = aws_wafv2_web_acl.alb.name
+}
+
+output "waf_allowed_ip_set_name" {
+  description = "AWS WAF IP set containing client CIDRs allowed to access the ALB."
+  value       = aws_wafv2_ip_set.allowed_clients.name
+}
+
+output "s3_ingestion_bucket_name" {
+  description = "S3 bucket for player JSON/CSV ingestion uploads."
+  value       = aws_s3_bucket.ingestion.bucket
+}
+
+output "s3_ingestion_upload_prefix" {
+  description = "S3 prefix that triggers the ingestion Lambda when Lambda ingestion is enabled."
+  value       = var.lambda_ingest_prefix
+}
+
+output "s3_player_ingest_lambda_name" {
+  description = "Name of the S3 player ingestion Lambda, when enabled."
+  value       = var.enable_s3_lambda_ingestion ? aws_lambda_function.s3_player_ingest[0].function_name : null
+}

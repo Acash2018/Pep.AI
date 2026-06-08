@@ -64,6 +64,18 @@ variable "desired_count" {
   default     = 1
 }
 
+variable "allowed_ip_cidrs" {
+  description = "IPv4 CIDR blocks allowed to access the ALB through AWS WAF."
+  type        = list(string)
+  default     = []
+}
+
+variable "waf_rate_limit" {
+  description = "Maximum requests per 5-minute window per source IP before AWS WAF blocks the caller."
+  type        = number
+  default     = 100
+}
+
 variable "ollama_base_url" {
   description = "Ollama endpoint used by the backend. The ECS deployment runs Ollama as a sidecar in the backend task."
   type        = string
@@ -86,4 +98,22 @@ variable "ollama_embedding_model" {
   description = "Ollama embedding model name passed to the backend."
   type        = string
   default     = "nomic-embed-text"
+}
+
+variable "enable_s3_lambda_ingestion" {
+  description = "Whether to deploy the S3-triggered Lambda that ingests player JSON/CSV files into PostgreSQL."
+  type        = bool
+  default     = false
+}
+
+variable "lambda_ingest_zip_path" {
+  description = "Path to the built Lambda deployment zip for S3 player ingestion. Required when enable_s3_lambda_ingestion is true."
+  type        = string
+  default     = ""
+}
+
+variable "lambda_ingest_prefix" {
+  description = "S3 object prefix that triggers player ingestion."
+  type        = string
+  default     = "uploads/"
 }

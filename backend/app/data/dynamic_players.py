@@ -8,13 +8,15 @@ from app.db.session import SessionLocal
 from app.services.football_metadata import enrich_player_metadata
 
 PUBLIC_DATA_SOURCE = 'StatsBomb Open Data'
+UPLOAD_DATA_SOURCE = 'S3 Upload'
+INGESTED_DATA_SOURCES = {PUBLIC_DATA_SOURCE, UPLOAD_DATA_SOURCE}
 
 
 def get_ingested_players(db: Session | None = None) -> list[dict[str, Any]]:
     owns_session = db is None
     db = db or SessionLocal()
     try:
-        players = db.scalars(select(Player).where(Player.source == PUBLIC_DATA_SOURCE)).all()
+        players = db.scalars(select(Player).where(Player.source.in_(INGESTED_DATA_SOURCES))).all()
         return [enrich_player_metadata(player.raw_profile) for player in players if player.raw_profile]
     finally:
         if owns_session:
