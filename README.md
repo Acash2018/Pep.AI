@@ -232,6 +232,23 @@ User
 
 This section explains the main backend tools and how Pep.AI uses each one.
 
+### Backend Technology Summary
+
+| Technology | What It Is | How Pep.AI Uses It | Why It Matters |
+| --- | --- | --- | --- |
+| FastAPI | Python web framework for building HTTP APIs | Handles frontend requests, validates inputs, routes scouting/search/history calls, and returns JSON responses | Gives Pep.AI a fast, typed, production-friendly API layer |
+| Pydantic | Data validation library used by FastAPI | Defines request and response models such as scouting requests and report responses | Keeps frontend/backend contracts predictable |
+| Uvicorn | ASGI server for running FastAPI | Serves the backend app locally, in Docker, and in ECS | Turns the Python API into a running HTTP service |
+| LangGraph | Workflow orchestration library for stateful agent graphs | Runs the scouting workflow as nodes: load player, Stats Agent, Tactical Fit Agent, Report Writer Agent | Makes the multi-agent flow explicit, testable, and easier to extend |
+| Ollama | Local LLM runtime | Runs `llama3.2:3b` for tactical reasoning, comparison explanations, and final report language | Adds local AI reasoning without depending on OpenAI API calls |
+| ChromaDB | Vector database | Stores embedded football knowledge chunks from tactical docs, role docs, reports, and player archetypes | Powers RAG so tactical analysis is grounded in football knowledge |
+| `nomic-embed-text` | Ollama embedding model | Converts football text into vectors before storing them in ChromaDB | Enables semantic retrieval over scouting and tactical documents |
+| SQLAlchemy | Database toolkit and ORM | Maps Python models to database tables and powers persistence services | Keeps player memory, reports, comparisons, and cache logic maintainable |
+| PostgreSQL + `psycopg` | Production relational database and Python driver | Stores persistent player memory, reports, tactical profiles, search history, and comparisons in production | Provides durable structured data storage |
+| SQLite | Local file-based relational database | Used automatically when `DATABASE_URL` is not configured | Lets the project run locally without setting up Postgres |
+| StatsBomb Open Data | Public football event dataset | Downloads Bundesliga matches, lineups, and events, then aggregates them into player profiles | Gives Pep.AI realistic public player data for demos |
+| Service Layer | Modular backend application structure | Separates routing, scoring, retrieval, persistence, ingestion, and comparison logic into focused services | Prevents API routes from becoming hard-to-maintain business logic |
+
 ### FastAPI
 
 FastAPI is the Python web framework that powers the backend HTTP API.
@@ -1367,6 +1384,55 @@ terraform destroy
 ```
 
 This ECS/Fargate deployment is more production-like than the EC2 Docker Compose demo, but it is also more expensive. Use it when you want the stronger AWS architecture story.
+
+### Core Cloud Technologies
+
+This section explains the AWS services used by Pep.AI, how the app uses them, and why they are part of the deployment.
+
+| Cloud Technology | What It Is | How Pep.AI Uses It | Why It Matters |
+| --- | --- | --- | --- |
+| Terraform | Infrastructure-as-code tool | Defines the AWS network, ECS services, ALB, RDS, EFS, ECR, WAF, logs, and secrets under `infra/terraform/` | Makes the cloud architecture repeatable instead of manually clicking resources in the console |
+| Amazon ECR | Docker image registry | Stores the built frontend and backend container images | ECS/Fargate pulls versioned app images from ECR during deployment |
+| Amazon ECS | Container orchestration service | Runs the frontend and backend as managed services in the `pep-ai-cluster` | Keeps containers running and handles service deployments |
+| AWS Fargate | Serverless container runtime for ECS | Runs the Next.js frontend task and FastAPI backend task without managing EC2 servers | Reduces server maintenance and gives a production-style container deployment |
+| Application Load Balancer | Layer 7 HTTP load balancer | Routes `/api/*` traffic to FastAPI and all other traffic to the Next.js frontend | Gives the app one public URL while keeping frontend/backend services separate |
+| AWS WAF | Web application firewall | Can attach to the ALB to allowlist client IPs, enforce US-only access, and rate-limit requests | Protects the public app URL from unwanted traffic and request bursts |
+| Amazon RDS PostgreSQL | Managed relational database | Stores players, scouting reports, tactical profiles, comparisons, search history, and cached reports | Provides durable production persistence without running Postgres manually |
+| Amazon EFS | Managed network file system | Persists ChromaDB vector data and Ollama model files across container restarts | Lets Fargate tasks keep vector/model data even when tasks are replaced |
+| AWS Secrets Manager | Managed secret storage | Stores the production `DATABASE_URL` used by the backend task | Keeps database credentials out of Docker images and source code |
+| Amazon CloudWatch Logs | Centralized AWS logging service | Stores logs from frontend, backend, and Ollama containers | Makes ECS runtime debugging possible from the AWS Console |
+| Amazon S3 | Object storage | Provides an ingestion bucket for player JSON/CSV uploads | Creates a production-style path for file-based scouting data ingestion |
+| Amazon EventBridge | Event bus and event routing service | Detects S3 object-created events from the ingestion bucket when enabled | Supports event-driven ingestion notifications and future automated workflows |
+| Amazon SNS | Notification service | Receives EventBridge S3 upload events and can send email notifications | Lets Pep.AI notify when new scouting data lands in the ingestion bucket |
+| IAM | AWS identity and permissions system | Grants ECS, Lambda, EventBridge, and other services only the permissions they need | Keeps cloud access controlled and least-privilege oriented |
+
+Cloud request flow:
+
+```text
+Browser
+  -> AWS WAF
+  -> Application Load Balancer
+      -> /api/* to FastAPI backend on ECS/Fargate
+      -> /* to Next.js frontend on ECS/Fargate
+
+Backend ECS task
+  -> Ollama sidecar for local LLM reasoning
+  -> RDS PostgreSQL for persistent scouting memory
+  -> EFS for ChromaDB vectors and Ollama model files
+  -> Secrets Manager for DATABASE_URL
+  -> CloudWatch Logs for runtime logs
+```
+
+Cloud ingestion flow:
+
+```text
+Player JSON/CSV upload
+  -> S3 ingestion bucket
+  -> EventBridge object-created event
+  -> SNS notification
+  -> optional ingestion workflow
+  -> PostgreSQL / ChromaDB
+```
 
 ### Docker Persistence
 
