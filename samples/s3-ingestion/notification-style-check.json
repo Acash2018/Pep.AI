@@ -1,0 +1,18 @@
+{
+  "players": [
+    {
+      "id": "prod-real-notification-style-check-001",
+      "name": "Pep.AI Notification Style Check",
+      "position": "Attacking Midfielder",
+      "club": "Pep.AI Test FC",
+      "nationality": "United States",
+      "estimatedValue": "Notification test",
+      "summary": "Small production upload used to verify the formatted SNS notification body.",
+      "strengths": ["clean S3 signal", "production notification"],
+      "weaknesses": ["temporary test profile"],
+      "tacticalStyle": "Operational smoke test profile",
+      "fitScore": 5,
+      "reportHighlights": ["Uploaded after SNS message formatting was enabled"]
+    }
+  ]
+}

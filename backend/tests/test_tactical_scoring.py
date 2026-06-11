@@ -18,3 +18,13 @@ def test_tactical_scoring_returns_bounded_score_and_reasoning():
     assert score['why_fit']
     assert score['why_not']
     assert score['system_compatibility']['style_overlap_score'] > 0
+
+
+def test_generic_trait_query_uses_custom_profile_instead_of_first_system():
+    system = TacticalFitScoringService().identify_system(
+        'Looking for a player with a good left foot and creative in midfield'
+    )
+
+    assert system['system_id'] == 'custom_profile'
+    assert system['label'] == 'Custom Profile'
+    assert {'chance creation', 'vision', 'passing'}.issubset(system['required_strengths'])

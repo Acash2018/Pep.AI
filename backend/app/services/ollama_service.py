@@ -20,6 +20,7 @@ load_dotenv()
 
 OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434').rstrip('/')
 OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'llama3.1')
+OLLAMA_TIMEOUT_SECONDS = float(os.getenv('OLLAMA_TIMEOUT_SECONDS', '8'))
 logger = logging.getLogger(__name__)
 
 
@@ -126,6 +127,7 @@ class OllamaService:
             ],
             'options': {
                 'temperature': 0.2,
+                'num_predict': 256,
             },
         }
         if json_output:
@@ -138,7 +140,7 @@ class OllamaService:
                 headers={'Content-Type': 'application/json'},
                 method='POST',
             )
-            with urlopen(request, timeout=90) as response:
+            with urlopen(request, timeout=OLLAMA_TIMEOUT_SECONDS) as response:
                 data = json.loads(response.read().decode('utf-8'))
                 content = data.get('message', {}).get('content')
                 if not content:

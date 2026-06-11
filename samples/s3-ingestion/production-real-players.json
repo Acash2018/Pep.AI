@@ -1,0 +1,74 @@
+{
+  "players": [
+    {
+      "id": "prod-real-haaland-001",
+      "name": "Erling Haaland",
+      "position": "Center Forward",
+      "club": "Manchester City",
+      "nationality": "Norway",
+      "estimatedValue": "Production test profile",
+      "summary": "Elite penalty-box striker profile uploaded through the production S3 ingestion path.",
+      "strengths": ["box movement", "finishing volume", "transition threat"],
+      "weaknesses": ["limited back-to-goal creation sample", "low-touch match involvement"],
+      "tacticalStyle": "Vertical runner and high-volume finisher for dominant possession sides",
+      "fitScore": 9,
+      "reportHighlights": ["Attacks depth early", "Converts high-value chances", "Stretches compact defensive lines"]
+    },
+    {
+      "id": "prod-real-bellingham-001",
+      "name": "Jude Bellingham",
+      "position": "Attacking Midfielder",
+      "club": "Real Madrid",
+      "nationality": "England",
+      "estimatedValue": "Production test profile",
+      "summary": "Two-way attacking midfielder profile uploaded through the production S3 ingestion path.",
+      "strengths": ["box arrivals", "ball carrying", "counter-pressing"],
+      "weaknesses": ["role-dependent final-third volume"],
+      "tacticalStyle": "Hybrid midfielder who connects build-up, pressure, and late penalty-area runs",
+      "fitScore": 9,
+      "reportHighlights": ["Carries through pressure", "Times late runs well", "Adds defensive intensity from midfield"]
+    },
+    {
+      "id": "prod-real-saka-001",
+      "name": "Bukayo Saka",
+      "position": "Right Winger",
+      "club": "Arsenal",
+      "nationality": "England",
+      "estimatedValue": "Production test profile",
+      "summary": "Creative wide attacker profile uploaded through the production S3 ingestion path.",
+      "strengths": ["1v1 creation", "final ball", "pressing discipline"],
+      "weaknesses": ["heavy usage load"],
+      "tacticalStyle": "Touchline winger who can isolate fullbacks and combine inside",
+      "fitScore": 8,
+      "reportHighlights": ["Creates from wide isolations", "Works reliably out of possession", "Combines with overlapping runners"]
+    },
+    {
+      "id": "prod-real-musiala-001",
+      "name": "Jamal Musiala",
+      "position": "Attacking Midfielder",
+      "club": "Bayern Munich",
+      "nationality": "Germany",
+      "estimatedValue": "Production test profile",
+      "summary": "Press-resistant creator profile uploaded through the production S3 ingestion path.",
+      "strengths": ["tight-space dribbling", "central progression", "combination play"],
+      "weaknesses": ["aerial impact"],
+      "tacticalStyle": "Interior creator who breaks compact blocks with carries and quick combinations",
+      "fitScore": 8,
+      "reportHighlights": ["Receives between lines", "Eliminates markers on the dribble", "Links midfield to the penalty area"]
+    },
+    {
+      "id": "prod-real-rodri-001",
+      "name": "Rodri",
+      "position": "Defensive Midfielder",
+      "club": "Manchester City",
+      "nationality": "Spain",
+      "estimatedValue": "Production test profile",
+      "summary": "Possession-control midfielder profile uploaded through the production S3 ingestion path.",
+      "strengths": ["tempo control", "rest defense", "progressive passing"],
+      "weaknesses": ["large-space recovery races"],
+      "tacticalStyle": "Single pivot who stabilizes possession and protects against transitions",
+      "fitScore": 10,
+      "reportHighlights": ["Controls build-up rhythm", "Screens central counterattacks", "Progresses play through pressure"]
+    }
+  ]
+}

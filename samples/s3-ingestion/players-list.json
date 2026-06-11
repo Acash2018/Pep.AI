@@ -1,0 +1,36 @@
+[
+  {
+    "id": "s3-demo-winger-001",
+    "name": "Elias Carter",
+    "position": "Right Winger",
+    "club": "Atlantic City FC",
+    "nationality": "United States",
+    "age": 20,
+    "estimatedValue": "EUR 12m",
+    "strengths": ["1v1 dribbling", "pressing", "chance creation"],
+    "weaknesses": ["defensive positioning"],
+    "tacticalStyle": "High press wide attacker",
+    "stats": {
+      "goals": 7,
+      "assists": 9,
+      "passAccuracy": 84
+    }
+  },
+  {
+    "id": "s3-demo-lwb-001",
+    "name": "Rafael Costa",
+    "position": "Left Wing Back",
+    "club": "Lisbon North",
+    "nationality": "Portugal",
+    "age": 24,
+    "estimatedValue": "EUR 16m",
+    "strengths": ["overlapping runs", "crossing", "recovery pace"],
+    "weaknesses": ["inside progression"],
+    "tacticalStyle": "Wide build-up and overlapping runs",
+    "stats": {
+      "goals": 3,
+      "assists": 8,
+      "passAccuracy": 86
+    }
+  }
+]

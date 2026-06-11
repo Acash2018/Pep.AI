@@ -91,7 +91,25 @@ def _normalize_player(row: dict[str, Any]) -> dict[str, Any]:
     profile['age'] = age
     profile['estimatedValue'] = row.get('estimatedValue') or row.get('estimated_value') or ''
     profile['source'] = row.get('source') or 'S3 Upload'
+    profile['summary'] = row.get('summary') or f"{profile['position'] or 'Player'} profile uploaded through S3."
+    profile['strengths'] = _list_value(row.get('strengths')) or ['profile ingestion']
+    profile['weaknesses'] = _list_value(row.get('weaknesses')) or ['sample size sensitivity']
+    profile['tacticalStyle'] = row.get('tacticalStyle') or row.get('tactical_style') or 'Uploaded scouting profile'
+    profile['fitScore'] = int(row.get('fitScore') or row.get('fit_score') or 5)
+    profile['reportHighlights'] = _list_value(row.get('reportHighlights') or row.get('report_highlights')) or [
+        'Uploaded through S3 ingestion',
+    ]
     return profile
+
+
+def _list_value(value: Any) -> list[str]:
+    if value is None or value == '':
+        return []
+    if isinstance(value, list):
+        return [str(item) for item in value if str(item).strip()]
+    if isinstance(value, str):
+        return [item.strip() for item in value.split('|') if item.strip()]
+    return [str(value)]
 
 
 def _upsert_players(conn: pg8000.dbapi.Connection, players: list[dict[str, Any]], bucket: str, key: str) -> int:

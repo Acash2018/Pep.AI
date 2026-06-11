@@ -1,0 +1,38 @@
+{
+  "players": [
+    {
+      "id": "s3-demo-cb-001",
+      "name": "Mateo Alvarez",
+      "position": "Center Back",
+      "club": "Pep.AI Test FC",
+      "nationality": "Spain",
+      "age": 23,
+      "estimatedValue": "EUR 18m",
+      "strengths": ["ball progression", "defensive coverage", "aerial duels"],
+      "weaknesses": ["turning radius", "sample size sensitivity"],
+      "tacticalStyle": "Build-up defender in a high line",
+      "stats": {
+        "goals": 1,
+        "assists": 2,
+        "passAccuracy": 91
+      }
+    },
+    {
+      "id": "s3-demo-dm-001",
+      "name": "Noah Becker",
+      "position": "Defensive Midfielder",
+      "club": "Pep.AI Test FC",
+      "nationality": "Germany",
+      "age": 21,
+      "estimatedValue": "EUR 22m",
+      "strengths": ["press resistance", "ball retention", "counter-pressing"],
+      "weaknesses": ["final third output"],
+      "tacticalStyle": "Deep-lying possession midfielder",
+      "stats": {
+        "goals": 2,
+        "assists": 5,
+        "passAccuracy": 93
+      }
+    }
+  ]
+}

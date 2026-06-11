@@ -85,6 +85,35 @@ SYSTEM_ARCHETYPES = {
     },
 }
 
+CUSTOM_QUERY_TRAITS = {
+    'creative': {'chance creation', 'vision', 'passing'},
+    'creator': {'chance creation', 'vision', 'passing'},
+    'playmaker': {'chance creation', 'vision', 'passing'},
+    'midfield': {'passing', 'ball retention', 'vision'},
+    'midfielder': {'passing', 'ball retention', 'vision'},
+    'press': {'pressing', 'stamina'},
+    'pressing': {'pressing', 'stamina'},
+    'defensive': {'tackling', 'defensive coverage', 'positional discipline'},
+    'defender': {'tackling', 'defensive coverage', 'positional discipline'},
+    'wide': {'crossing', 'dribbling', 'ball carrying'},
+    'wing': {'crossing', 'dribbling', 'ball carrying'},
+    'crossing': {'crossing'},
+    'fast': {'stamina', 'ball carrying'},
+    'pace': {'stamina', 'ball carrying'},
+    'technical': {'passing', 'ball retention', 'vision'},
+    'possession': {'passing', 'ball retention', 'vision'},
+    'finisher': {'finishing'},
+    'finishing': {'finishing'},
+    'striker': {'finishing', 'stamina'},
+    'forward': {'finishing', 'chance creation'},
+}
+
+CUSTOM_QUERY_RISKS = {
+    'passing security',
+    'concentration',
+    'defensive intensity',
+}
+
 
 class TacticalFitScoringService:
     def score_fit(self, player: dict, preferred_system: str, role_match: dict, retrieved_context: list[dict]) -> dict:
@@ -139,6 +168,16 @@ class TacticalFitScoringService:
                 best_id = system_id
                 best_overlap = overlap
 
+        if best_overlap <= 0:
+            return {
+                'system_id': 'custom_profile',
+                'label': 'Custom Profile',
+                'keywords': query_terms,
+                'aliases': set(),
+                'required_strengths': _infer_custom_required_strengths(query_terms),
+                'risk_weaknesses': CUSTOM_QUERY_RISKS,
+            }
+
         return {'system_id': best_id, **SYSTEM_ARCHETYPES[best_id]}
 
 
@@ -159,6 +198,13 @@ def _normalize_text(text: str) -> str:
         else:
             words.append(word)
     return ' '.join(words)
+
+
+def _infer_custom_required_strengths(query_terms: set[str]) -> set[str]:
+    required = set()
+    for term in query_terms:
+        required.update(CUSTOM_QUERY_TRAITS.get(term, set()))
+    return required or {'passing', 'ball retention', 'chance creation'}
 
 
 def _grade(score: int) -> str:

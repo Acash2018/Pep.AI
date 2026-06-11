@@ -1,0 +1,4 @@
+id,name,position,club,nationality,age,estimatedValue,source
+s3-demo-csv-am-001,Samir Haddad,Attacking Midfielder,Marseille Harbor,France,22,EUR 19m,S3 Upload
+s3-demo-csv-st-001,Jonas Reed,Center Forward,Northbridge FC,England,25,EUR 15m,S3 Upload
+s3-demo-csv-rb-001,Diego Ramos,Right Back,Valencia Coast,Spain,23,EUR 11m,S3 Upload

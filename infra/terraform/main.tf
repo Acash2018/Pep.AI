@@ -9,6 +9,18 @@ locals {
   backend_image    = "${aws_ecr_repository.backend.repository_url}:${var.image_tag}"
   chroma_directory = "/app/chromadb"
   ollama_directory = "/root/.ollama"
+  s3_object_created_event_detail = merge(
+    {
+      bucket = {
+        name = [aws_s3_bucket.ingestion.bucket]
+      }
+    },
+    var.s3_sns_notification_prefix == null ? {} : {
+      object = {
+        key = [{ prefix = var.s3_sns_notification_prefix }]
+      }
+    }
+  )
 }
 
 resource "aws_ecr_repository" "frontend" {
@@ -392,6 +404,87 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "ingestion" {
   }
 }
 
+resource "aws_sns_topic" "s3_object_created" {
+  count = var.enable_s3_sns_notifications ? 1 : 0
+  name  = "${local.name}-s3-object-created"
+}
+
+resource "aws_sns_topic_policy" "s3_object_created" {
+  count = var.enable_s3_sns_notifications ? 1 : 0
+  arn   = aws_sns_topic.s3_object_created[0].arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid    = "AllowEventBridgePublish"
+      Effect = "Allow"
+      Principal = {
+        Service = "events.amazonaws.com"
+      }
+      Action   = "sns:Publish"
+      Resource = aws_sns_topic.s3_object_created[0].arn
+      Condition = {
+        ArnLike = {
+          "aws:SourceArn" = aws_cloudwatch_event_rule.s3_object_created[0].arn
+        }
+      }
+    }]
+  })
+}
+
+resource "aws_sns_topic_subscription" "s3_object_created_email" {
+  count     = var.enable_s3_sns_notifications && var.s3_sns_notification_email != "" ? 1 : 0
+  topic_arn = aws_sns_topic.s3_object_created[0].arn
+  protocol  = "email"
+  endpoint  = var.s3_sns_notification_email
+}
+
+resource "aws_cloudwatch_event_rule" "s3_object_created" {
+  count       = var.enable_s3_sns_notifications ? 1 : 0
+  name        = "${local.name}-s3-object-created"
+  description = "Publishes production S3 object-created events to SNS."
+
+  event_pattern = jsonencode({
+    source        = ["aws.s3"]
+    "detail-type" = ["Object Created"]
+    detail        = local.s3_object_created_event_detail
+  })
+}
+
+resource "aws_cloudwatch_event_target" "s3_object_created_sns" {
+  count     = var.enable_s3_sns_notifications ? 1 : 0
+  rule      = aws_cloudwatch_event_rule.s3_object_created[0].name
+  target_id = "sns"
+  arn       = aws_sns_topic.s3_object_created[0].arn
+
+  input_transformer {
+    input_paths = {
+      bucket     = "$.detail.bucket.name"
+      event_time = "$.time"
+      key        = "$.detail.object.key"
+      reason     = "$.detail.reason"
+      region     = "$.region"
+      size       = "$.detail.object.size"
+    }
+
+    input_template = <<-EOT
+      {
+        "title": "Pep.AI S3 Upload Received",
+        "message": "A new file was dropped into the production ingestion bucket.",
+        "bucket": <bucket>,
+        "key": <key>,
+        "size_bytes": <size>,
+        "region": <region>,
+        "event_time": <event_time>,
+        "reason": <reason>,
+        "production_ingestion_prefix": "uploads/"
+      }
+    EOT
+  }
+
+  depends_on = [aws_sns_topic_policy.s3_object_created]
+}
+
 resource "aws_iam_role" "lambda_ingest" {
   count = var.enable_s3_lambda_ingestion ? 1 : 0
   name  = "${local.name}-s3-player-ingest"
@@ -486,16 +579,24 @@ resource "aws_lambda_permission" "allow_s3_ingestion" {
 }
 
 resource "aws_s3_bucket_notification" "ingestion" {
-  count  = var.enable_s3_lambda_ingestion ? 1 : 0
-  bucket = aws_s3_bucket.ingestion.id
+  count       = var.enable_s3_lambda_ingestion || var.enable_s3_sns_notifications ? 1 : 0
+  bucket      = aws_s3_bucket.ingestion.id
+  eventbridge = var.enable_s3_sns_notifications
 
-  lambda_function {
-    lambda_function_arn = aws_lambda_function.s3_player_ingest[0].arn
-    events              = ["s3:ObjectCreated:*"]
-    filter_prefix       = var.lambda_ingest_prefix
+  dynamic "lambda_function" {
+    for_each = var.enable_s3_lambda_ingestion ? [1] : []
+
+    content {
+      lambda_function_arn = aws_lambda_function.s3_player_ingest[0].arn
+      events              = ["s3:ObjectCreated:*"]
+      filter_prefix       = var.lambda_ingest_prefix
+    }
   }
 
-  depends_on = [aws_lambda_permission.allow_s3_ingestion]
+  depends_on = [
+    aws_lambda_permission.allow_s3_ingestion,
+    aws_cloudwatch_event_rule.s3_object_created
+  ]
 }
 
 resource "aws_lb" "main" {

@@ -57,3 +57,13 @@ output "s3_player_ingest_lambda_name" {
   description = "Name of the S3 player ingestion Lambda, when enabled."
   value       = var.enable_s3_lambda_ingestion ? aws_lambda_function.s3_player_ingest[0].function_name : null
 }
+
+output "s3_object_created_sns_topic_arn" {
+  description = "SNS topic ARN that receives S3 object-created events, when enabled."
+  value       = var.enable_s3_sns_notifications ? aws_sns_topic.s3_object_created[0].arn : null
+}
+
+output "s3_object_created_sns_email_subscription" {
+  description = "Email endpoint subscribed to S3 object-created notifications, when configured."
+  value       = var.s3_sns_notification_email != "" ? var.s3_sns_notification_email : null
+}

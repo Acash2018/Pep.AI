@@ -78,6 +78,17 @@ FORMATION_COMPATIBILITY = {
 
 def enrich_player_metadata(player: dict) -> dict:
     enriched = deepcopy(player)
+    enriched.setdefault('strengths', [])
+    enriched.setdefault('weaknesses', [])
+    enriched.setdefault('tacticalStyle', 'Balanced tactical profile')
+    enriched.setdefault('fitScore', 5)
+    enriched.setdefault('reportHighlights', ['Profile enriched from available scouting data'])
+
+    stats = enriched.setdefault('stats', {})
+    stats.setdefault('goals', 0)
+    stats.setdefault('assists', 0)
+    stats.setdefault('passAccuracy', 0)
+
     primary_position = infer_primary_position(enriched.get('position', ''))
     tactical_roles = infer_tactical_roles(enriched, primary_position)
     suitable_formations = infer_suitable_formations(primary_position, tactical_roles)

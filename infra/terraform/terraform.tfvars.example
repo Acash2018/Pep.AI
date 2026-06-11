@@ -18,3 +18,7 @@ ollama_embedding_model = "nomic-embed-text"
 enable_s3_lambda_ingestion = false
 lambda_ingest_zip_path     = "../../backend/lambda_ingest/lambda_ingest.zip"
 lambda_ingest_prefix       = "uploads/"
+
+enable_s3_sns_notifications = false
+s3_sns_notification_email   = ""
+s3_sns_notification_prefix  = null

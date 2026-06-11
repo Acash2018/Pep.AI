@@ -11,6 +11,7 @@ This Terraform stack deploys Pep.AI to AWS with:
 - AWS Secrets Manager for the backend `DATABASE_URL`
 - CloudWatch Logs for frontend and backend task logs
 - Optional S3-triggered Lambda ingestion for player JSON/CSV uploads
+- Optional SNS notifications for production S3 upload testing
 
 ## Architecture
 
@@ -29,6 +30,12 @@ Optional ingestion path
   -> S3 upload under uploads/
   -> Lambda
   -> RDS PostgreSQL players table
+
+Optional upload notification path
+  -> S3 object created
+  -> EventBridge
+  -> SNS topic
+  -> confirmed email subscription
 ```
 
 ## Cost Notes
@@ -153,6 +160,31 @@ The file should contain either a JSON list, a JSON object with a `players` list,
 ```text
 id,name,position,club,nationality,age,estimatedValue
 ```
+
+## Optional S3/SNS Upload Notifications
+
+Use SNS when you want a production-level signal that a new file reached the ingestion bucket. S3 emits object-created events to EventBridge, and EventBridge publishes matching events to SNS. This can run independently from Lambda ingestion, or alongside it.
+
+Enable the SNS topic and optional email subscription in `terraform.tfvars`:
+
+```hcl
+enable_s3_sns_notifications = true
+s3_sns_notification_email   = "you@example.com"
+s3_sns_notification_prefix  = null
+```
+
+Set `s3_sns_notification_prefix = "uploads/"` if you only want notifications for ingestion uploads. With `null`, any new object in the bucket publishes to SNS.
+
+Apply Terraform, then confirm the SNS subscription email before testing:
+
+```powershell
+terraform apply
+terraform output s3_ingestion_bucket_name
+terraform output s3_object_created_sns_topic_arn
+aws s3 cp ..\..\samples\s3-ingestion\players-basic.json s3://BUCKET_NAME/uploads/sns-test.json
+```
+
+The email notification includes the S3 event payload with the bucket name, object key, event time, and object size.
 
 ## Update Images
 

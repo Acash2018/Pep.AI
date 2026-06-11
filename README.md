@@ -49,6 +49,185 @@ The app is designed to answer questions such as:
 - SQLite local fallback
 - StatsBomb Open Data ingestion
 
+## Design Diagram
+
+This is the full application flow from the dashboard through the backend, retrieval layer, agent workflow, persistence layer, and final scouting output.
+
+```mermaid
+flowchart TB
+    User["User / Scout"]
+    Browser["Next.js Frontend Dashboard"]
+
+    User --> Browser
+
+    Browser -->|Search players| API["FastAPI Backend"]
+    Browser -->|Scout player| API
+    Browser -->|Ingest public data| API
+    Browser -->|View reports/history/compare| API
+
+    subgraph Frontend["Frontend"]
+        Browser
+        Pages["Dashboard / Reports / History / Compare / Player Profile"]
+        Browser --> Pages
+    end
+
+    subgraph Backend["Backend - FastAPI"]
+        API --> Routes["API Routes"]
+        Routes --> PlayerService["Player Service"]
+        Routes --> IngestService["StatsBomb Ingestion Service"]
+        Routes --> Workflow["LangGraph Scouting Workflow"]
+        Routes --> MemoryService["Persistence / Memory Services"]
+        Routes --> KnowledgeService["Knowledge Base Service"]
+    end
+
+    subgraph DataIngestion["Public Data Ingestion"]
+        StatsBomb["StatsBomb Open Data GitHub"]
+        IngestService -->|Fetch matches, lineups, events| StatsBomb
+        IngestService -->|Aggregate event data| ProfileBuilder["Player Profile Builder"]
+        ProfileBuilder --> MetadataEnrichment["Football Metadata Enrichment"]
+    end
+
+    subgraph Intelligence["Football Intelligence Layer"]
+        KnowledgeFolder["Football Knowledge Base Folder"]
+        TacticalDocs["Tactical Systems Docs"]
+        RoleDocs["Player Role Docs"]
+        ScoutDocs["Scouting Reports"]
+        AnalysisDocs["Tactical Analysis Files"]
+
+        KnowledgeFolder --> TacticalDocs
+        KnowledgeFolder --> RoleDocs
+        KnowledgeFolder --> ScoutDocs
+        KnowledgeFolder --> AnalysisDocs
+
+        KnowledgeService --> Embeddings["Embeddings Service"]
+        Embeddings --> Chroma["ChromaDB Vector Store"]
+        KnowledgeService --> VectorSearch["Metadata-Aware Vector Search"]
+        VectorSearch --> Chroma
+    end
+
+    subgraph WorkflowLayer["LangGraph Multi-Agent Workflow"]
+        Workflow --> StatsAgent["Stats Agent"]
+        StatsAgent --> TacticalFitAgent["Tactical Fit Agent"]
+        TacticalFitAgent --> ReportWriter["Report Writer Agent"]
+
+        TacticalFitAgent --> TacticalScoring["Tactical Fit Scoring"]
+        TacticalFitAgent --> RoleMatching["Role Matching Service"]
+        TacticalFitAgent --> ComparisonEngine["Player Comparison Engine"]
+        TacticalFitAgent --> VectorSearch
+    end
+
+    subgraph Reasoning["LLM Reasoning Layer"]
+        Ollama["Ollama - llama3.2:3b"]
+        TacticalFitAgent -->|Tactical reasoning| Ollama
+        ReportWriter -->|Final report generation| Ollama
+        ComparisonEngine -->|Comparison explanation| Ollama
+    end
+
+    subgraph Persistence["Persistent Memory Layer"]
+        Postgres["PostgreSQL / RDS"]
+        PlayerTable["Player"]
+        ReportTable["ScoutingReport"]
+        TacticalTable["TacticalProfile"]
+        ComparisonTable["Comparison"]
+        KnowledgeTable["KnowledgeSource"]
+        SearchTable["SearchHistory"]
+
+        MemoryService --> Postgres
+        MetadataEnrichment --> Postgres
+        Workflow --> MemoryService
+
+        Postgres --> PlayerTable
+        Postgres --> ReportTable
+        Postgres --> TacticalTable
+        Postgres --> ComparisonTable
+        Postgres --> KnowledgeTable
+        Postgres --> SearchTable
+    end
+
+    subgraph Output["Scouting Output"]
+        FinalReport["Professional Scouting Report"]
+        Strengths["Strengths"]
+        Weaknesses["Weaknesses"]
+        TacticalFit["Tactical Fit"]
+        TransferValue["Transfer Value"]
+        SimilarPlayers["Similar Players"]
+        Risks["Recruitment Risks"]
+        Recommendation["Final Recommendation"]
+
+        ReportWriter --> FinalReport
+        FinalReport --> Strengths
+        FinalReport --> Weaknesses
+        FinalReport --> TacticalFit
+        FinalReport --> TransferValue
+        FinalReport --> SimilarPlayers
+        FinalReport --> Risks
+        FinalReport --> Recommendation
+    end
+
+    API --> FinalReport
+    FinalReport --> Browser
+```
+
+## AWS Deployment Diagram
+
+The AWS deployment uses ECS/Fargate, RDS, EFS, ALB, WAF, ECR, CloudWatch, Secrets Manager, ChromaDB persistence, and an Ollama sidecar for local model reasoning.
+
+```mermaid
+flowchart TB
+    User["User Browser"]
+    WAF["AWS WAF<br/>IP allowlist + rate limiting"]
+    ALB["Application Load Balancer"]
+
+    User --> WAF
+    WAF --> ALB
+
+    ALB -->|/| FrontendSvc["ECS Fargate Frontend Service<br/>Next.js"]
+    ALB -->|/api/*| BackendSvc["ECS Fargate Backend Service<br/>FastAPI"]
+
+    subgraph ECS["Amazon ECS / Fargate"]
+        FrontendSvc
+
+        subgraph BackendTask["Backend Task"]
+            BackendContainer["FastAPI Container"]
+            OllamaContainer["Ollama Sidecar<br/>llama3.2:3b"]
+            BackendContainer -->|localhost:11434| OllamaContainer
+        end
+
+        BackendSvc --> BackendTask
+    end
+
+    BackendContainer --> RDS["Amazon RDS PostgreSQL<br/>Player memory, reports, comparisons"]
+    BackendContainer --> EFS["Amazon EFS<br/>ChromaDB + Ollama model files"]
+    BackendContainer --> Chroma["ChromaDB<br/>Vector search"]
+    Chroma --> EFS
+
+    BackendContainer --> StatsBomb["StatsBomb Open Data<br/>GitHub JSON"]
+    BackendContainer --> CloudWatch["CloudWatch Logs"]
+
+    FrontendSvc --> CloudWatch
+
+    ECR["Amazon ECR<br/>Docker images"]
+    ECR --> FrontendSvc
+    ECR --> BackendSvc
+
+    Secrets["AWS Secrets Manager<br/>DATABASE_URL"]
+    Secrets --> BackendContainer
+```
+
+Short architecture summary:
+
+```text
+User
+-> Next.js dashboard
+-> FastAPI backend
+-> LangGraph scouting workflow
+-> Stats Agent / Tactical Fit Agent / Report Writer Agent
+-> ChromaDB football RAG + tactical metadata filtering
+-> Ollama reasoning layer
+-> PostgreSQL scouting memory
+-> final scouting report back to frontend
+```
+
 ## Core Backend Technologies
 
 This section explains the main backend tools and how Pep.AI uses each one.

@@ -117,3 +117,21 @@ variable "lambda_ingest_prefix" {
   type        = string
   default     = "uploads/"
 }
+
+variable "enable_s3_sns_notifications" {
+  description = "Whether to publish S3 object-created notifications to SNS for production upload testing."
+  type        = bool
+  default     = false
+}
+
+variable "s3_sns_notification_email" {
+  description = "Optional email address to subscribe to S3 object-created SNS notifications. The recipient must confirm the subscription email."
+  type        = string
+  default     = ""
+}
+
+variable "s3_sns_notification_prefix" {
+  description = "Optional S3 object prefix that publishes SNS notifications. Null watches the whole bucket."
+  type        = string
+  default     = null
+}

@@ -23,8 +23,9 @@ function fitBadge(score100: number, hasSystemContext: boolean): { label: string;
 
 export default function PlayerCard({ player, selected = false }: PlayerCardProps) {
   const hasSystemContext = typeof player.systemFitScore === 'number';
-  const score100 = hasSystemContext ? (player.systemFitScore as number) : player.fitScore * 10;
+  const score100 = hasSystemContext ? (player.systemFitScore as number) : (player.fitScore ?? 5) * 10;
   const badge = fitBadge(score100, hasSystemContext);
+  const strengths = player.strengths ?? [];
   return (
     <article className="rounded-lg border border-white/10 bg-white/5 p-6 shadow-lg shadow-black/10 transition hover:-translate-y-1">
       <div className="flex items-start justify-between gap-4">
@@ -36,7 +37,9 @@ export default function PlayerCard({ player, selected = false }: PlayerCardProps
           {selected ? 'Selected' : badge.label}
         </span>
       </div>
-      <p className="mt-4 text-sm leading-6 text-slate-300">{player.summary}</p>
+      <p className="mt-4 text-sm leading-6 text-slate-300">
+        {player.summary || `${player.position} profile from ${player.source ?? 'Pep.AI'}.`}
+      </p>
       <div className="mt-4 grid gap-3 text-sm text-slate-300 md:grid-cols-3">
         <Meta label="Primary Role" value={formatRole(player.tactical_roles?.[0] ?? player.primary_position)} />
         <Meta label="Formations" value={player.suitable_formations?.slice(0, 2).map(formatRole).join(', ')} />
@@ -49,7 +52,7 @@ export default function PlayerCard({ player, selected = false }: PlayerCardProps
         </div>
         <div className="rounded-lg bg-slate-950/60 p-4">
           <p className="text-xs uppercase text-slate-500">Strengths</p>
-          <p className="mt-2 text-sm text-slate-300">{player.strengths.join(', ')}</p>
+          <p className="mt-2 text-sm text-slate-300">{strengths.length ? strengths.join(', ') : 'Profile data pending'}</p>
         </div>
       </div>
       {player.retrieval_metadata ? (
